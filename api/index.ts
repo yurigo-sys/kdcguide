@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -190,6 +189,7 @@ app.post("/api/training-process", (req, res) => {
 
 if (!isVercel) {
   const PORT = 3000;
+  const { createServer: createViteServer } = await import("vite");
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
   app.use(vite.middlewares);
   app.listen(PORT, "0.0.0.0", () => console.log(`Server running on http://localhost:${PORT}`));
