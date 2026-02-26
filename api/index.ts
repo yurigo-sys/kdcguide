@@ -70,17 +70,25 @@ const query = async (text: string, params?: any[]) => {
       let pgText = text;
       let pgParams = params || [];
       
-      let index = 1;
-      pgText = pgText.replace(/\?/g, () => `$${index++}`);
-      
-      pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-      pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
-      pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
+      // Handle INSERT OR REPLACE -> INSERT ... ON CONFLICT for settings table specifically
+      if (pgText.includes("INSERT OR REPLACE INTO settings")) {
+        pgText = "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value";
+      } else {
+        // Simple regex to replace ? with $1, $2, etc.
+        let index = 1;
+        pgText = pgText.replace(/\?/g, () => `$${index++}`);
+        
+        pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+        pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
+        pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
+      }
       
       return await pool.query(pgText, pgParams);
     } else {
-      const stmt = sqliteDb.prepare(text);
-      if (text.trim().toUpperCase().startsWith("SELECT")) {
+      // For SQLite, ensure we don't have $1, $2 etc.
+      let sqliteText = text.replace(/\$\d+/g, "?");
+      const stmt = sqliteDb.prepare(sqliteText);
+      if (sqliteText.trim().toUpperCase().startsWith("SELECT")) {
         return { rows: stmt.all(params || []) };
       } else {
         const result = stmt.run(params || []);
@@ -89,9 +97,6 @@ const query = async (text: string, params?: any[]) => {
     }
   } catch (error: any) {
     console.error(`[DB] Query Error: ${text.substring(0, 100)}...`, error);
-    
-    // If Postgres fails with a connection/URL error, try to fallback to SQLite for this request if possible
-    // Note: This is complex because schema might be different or session store might be broken
     if (usePostgres && (error.code === 'ERR_INVALID_URL' || error.code === 'ECONNREFUSED')) {
       console.error("[DB] Postgres connection failed, please check DATABASE_URL");
     }
@@ -182,14 +187,10 @@ const initDb = async () => {
   if (settingsCount === 0 && initialData?.settings) {
     for (const [key, value] of Object.entries(initialData.settings)) {
       const val = typeof value === "object" ? JSON.stringify(value) : String(value);
-      await query("INSERT INTO settings (key, value) VALUES (?, ?)", [key, val]);
+      await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, val]);
     }
   } else {
-    if (usePostgres) {
-      await query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", ['adminPassword', 'comento0804']);
-    } else {
-      sqliteDb.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run('adminPassword', 'comento0804');
-    }
+    await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['adminPassword', 'comento0804']);
   }
 };
 
@@ -233,7 +234,7 @@ app.get("/api/posts", async (req, res) => {
 });
 
 app.get("/api/posts/:id", async (req, res) => {
-  const result = await query("SELECT * FROM posts WHERE id = $1", [req.params.id]);
+  const result = await query("SELECT * FROM posts WHERE id = ?", [req.params.id]);
   const post = result.rows[0];
   if (!post) return res.status(404).json({ error: "Post not found" });
   res.json(post);
@@ -241,18 +242,18 @@ app.get("/api/posts/:id", async (req, res) => {
 
 app.post("/api/posts", async (req, res) => {
   const { title, content, category, icon } = req.body;
-  const result = await query("INSERT INTO posts (title, content, category, icon) VALUES ($1, $2, $3, $4) RETURNING id", [title, content, category, icon]);
+  const result = await query("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)", [title, content, category, icon]);
   res.json({ id: result.rows[0].id, success: true });
 });
 
 app.put("/api/posts/:id", async (req, res) => {
   const { title, content, category, icon } = req.body;
-  const result = await query("UPDATE posts SET title = $1, content = $2, category = $3, icon = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5", [title, content, category, icon, req.params.id]);
+  const result = await query("UPDATE posts SET title = ?, content = ?, category = ?, icon = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [title, content, category, icon, req.params.id]);
   res.json({ success: result.rowCount ? result.rowCount > 0 : false });
 });
 
 app.post("/api/posts/delete", async (req, res) => {
-  const result = await query("DELETE FROM posts WHERE id = $1", [Number(req.body.id)]);
+  const result = await query("DELETE FROM posts WHERE id = ?", [Number(req.body.id)]);
   res.json({ success: true, changes: result.rowCount });
 });
 
@@ -264,7 +265,7 @@ app.get("/api/settings", async (req, res) => {
 app.post("/api/settings", async (req, res) => {
   const { siteName, primaryColor, adminPassword, logoUrl, contactInfo, contactLinks } = req.body;
   const upsert = async (key: string, value: string) => {
-    await query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", [key, value]);
+    await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value]);
   };
   if (siteName) await upsert("siteName", siteName);
   if (primaryColor) await upsert("primaryColor", primaryColor);
@@ -281,19 +282,19 @@ app.get("/api/categories", async (req, res) => {
 });
 
 app.post("/api/categories", async (req, res) => {
-  await query("INSERT INTO categories (name, display_order) VALUES ($1, $2)", [req.body.name, req.body.display_order]);
+  await query("INSERT INTO categories (name, display_order) VALUES (?, ?)", [req.body.name, req.body.display_order]);
   res.json({ success: true });
 });
 
 app.delete("/api/categories/:id", async (req, res) => {
-  await query("DELETE FROM categories WHERE id = $1", [req.params.id]);
+  await query("DELETE FROM categories WHERE id = ?", [req.params.id]);
   res.json({ success: true });
 });
 
 app.post("/api/categories/bulk", async (req, res) => {
   await query("DELETE FROM categories");
   for (const c of req.body.categories) {
-    await query("INSERT INTO categories (name, display_order) VALUES ($1, $2)", [c.name, c.display_order]);
+    await query("INSERT INTO categories (name, display_order) VALUES (?, ?)", [c.name, c.display_order]);
   }
   res.json({ success: true });
 });
@@ -304,7 +305,7 @@ app.get("/api/faqs", async (req, res) => {
 });
 
 app.get("/api/faqs/:id", async (req, res) => {
-  const result = await query("SELECT * FROM faqs WHERE id = $1", [req.params.id]);
+  const result = await query("SELECT * FROM faqs WHERE id = ?", [req.params.id]);
   const faq = result.rows[0];
   if (!faq) return res.status(404).json({ error: "FAQ not found" });
   res.json(faq);
@@ -312,17 +313,17 @@ app.get("/api/faqs/:id", async (req, res) => {
 
 app.post("/api/faqs", async (req, res) => {
   const { question, answer } = req.body;
-  const result = await query("INSERT INTO faqs (question, answer) VALUES ($1, $2) RETURNING id", [question, answer]);
+  const result = await query("INSERT INTO faqs (question, answer) VALUES (?, ?)", [question, answer]);
   res.json({ success: true, id: result.rows[0].id });
 });
 
 app.post("/api/faqs/delete", async (req, res) => {
-  const result = await query("DELETE FROM faqs WHERE id = $1", [Number(req.body.id)]);
+  const result = await query("DELETE FROM faqs WHERE id = ?", [Number(req.body.id)]);
   res.json({ success: true, changes: result.rowCount });
 });
 
 app.post("/api/admin/login", async (req, res) => {
-  const result = await query("SELECT value FROM settings WHERE key = 'adminPassword'");
+  const result = await query("SELECT value FROM settings WHERE key = ?");
   const setting = result.rows[0];
   if (req.body.password === (setting?.value || "comento0804")) {
     (req.session as any).isAdmin = true;
@@ -356,7 +357,7 @@ app.get("/api/training-process", async (req, res) => {
 app.post("/api/training-process", async (req, res) => {
   await query("DELETE FROM training_process");
   for (const s of req.body.steps) {
-    await query("INSERT INTO training_process (title, description, step_order) VALUES ($1, $2, $3)", [s.title, s.description, s.step_order]);
+    await query("INSERT INTO training_process (title, description, step_order) VALUES (?, ?, ?)", [s.title, s.description, s.step_order]);
   }
   res.json({ success: true });
 });

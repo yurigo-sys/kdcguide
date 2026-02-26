@@ -69,17 +69,25 @@ const query = async (text: string, params?: any[]) => {
       let pgText = text;
       let pgParams = params || [];
       
-      let index = 1;
-      pgText = pgText.replace(/\?/g, () => `$${index++}`);
-      
-      pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-      pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
-      pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
+      // Handle INSERT OR REPLACE -> INSERT ... ON CONFLICT for settings table specifically
+      if (pgText.includes("INSERT OR REPLACE INTO settings")) {
+        pgText = "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value";
+      } else {
+        // Simple regex to replace ? with $1, $2, etc.
+        let index = 1;
+        pgText = pgText.replace(/\?/g, () => `$${index++}`);
+        
+        pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+        pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
+        pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
+      }
       
       return await pool.query(pgText, pgParams);
     } else {
-      const stmt = sqliteDb.prepare(text);
-      if (text.trim().toUpperCase().startsWith("SELECT")) {
+      // For SQLite, ensure we don't have $1, $2 etc.
+      let sqliteText = text.replace(/\$\d+/g, "?");
+      const stmt = sqliteDb.prepare(sqliteText);
+      if (sqliteText.trim().toUpperCase().startsWith("SELECT")) {
         return { rows: stmt.all(params || []) };
       } else {
         const result = stmt.run(params || []);
@@ -178,14 +186,10 @@ const initDb = async () => {
   if (settingsCount === 0 && initialData?.settings) {
     for (const [key, value] of Object.entries(initialData.settings)) {
       const val = typeof value === "object" ? JSON.stringify(value) : String(value);
-      await query("INSERT INTO settings (key, value) VALUES (?, ?)", [key, val]);
+      await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, val]);
     }
   } else {
-    if (usePostgres) {
-      await query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", ['adminPassword', 'comento0804']);
-    } else {
-      sqliteDb.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run('adminPassword', 'comento0804');
-    }
+    await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['adminPassword', 'comento0804']);
   }
 };
 
@@ -229,7 +233,7 @@ app.get("/api/posts", async (req, res) => {
 });
 
 app.get("/api/posts/:id", async (req, res) => {
-  const result = await query("SELECT * FROM posts WHERE id = $1", [req.params.id]);
+  const result = await query("SELECT * FROM posts WHERE id = ?", [req.params.id]);
   const post = result.rows[0];
   if (!post) return res.status(404).json({ error: "Post not found" });
   res.json(post);
@@ -260,11 +264,7 @@ app.get("/api/settings", async (req, res) => {
 app.post("/api/settings", async (req, res) => {
   const { siteName, primaryColor, adminPassword, logoUrl, contactInfo, contactLinks } = req.body;
   const upsert = async (key: string, value: string) => {
-    if (usePostgres) {
-      await query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", [key, value]);
-    } else {
-      await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value]);
-    }
+    await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value]);
   };
   if (siteName) await upsert("siteName", siteName);
   if (primaryColor) await upsert("primaryColor", primaryColor);
@@ -322,7 +322,7 @@ app.post("/api/faqs/delete", async (req, res) => {
 });
 
 app.post("/api/admin/login", async (req, res) => {
-  const result = await query("SELECT value FROM settings WHERE key = 'adminPassword'");
+  const result = await query("SELECT value FROM settings WHERE key = ?");
   const setting = result.rows[0];
   if (req.body.password === (setting?.value || "comento0804")) {
     (req.session as any).isAdmin = true;
