@@ -27,27 +27,39 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Database Configuration
 const rawDbUrl = process.env.DATABASE_URL || "";
-const usePostgres = rawDbUrl.startsWith("postgres") && rawDbUrl.includes("@");
+let usePostgres = rawDbUrl.startsWith("postgres") && rawDbUrl.includes("@");
 let pool: pg.Pool | null = null;
 let sqliteDb: any = null;
 
-console.log(`[DB] Environment: ${isVercel ? "Vercel" : "Local"}`);
-console.log(`[DB] Using Postgres: ${usePostgres}`);
-if (usePostgres) {
-  const maskedUrl = rawDbUrl.replace(/:([^@]+)@/, ":****@");
-  console.log(`[DB] URL: ${maskedUrl}`);
-  pool = new Pool({
-    connectionString: rawDbUrl,
-    ssl: { rejectUnauthorized: false }
-  });
+const initDatabase = () => {
+  console.log(`[DB] Environment: ${isVercel ? "Vercel" : "Local"}`);
   
-  pool.on('error', (err) => {
-    console.error('[DB] Unexpected error on idle client', err);
-  });
-} else {
-  console.log(`[DB] SQLite Path: ${dbPath}`);
-  sqliteDb = new Database(dbPath);
-}
+  if (usePostgres) {
+    try {
+      const maskedUrl = rawDbUrl.replace(/\/\/[^:]+:[^@]+@/, "//****:****@");
+      console.log(`[DB] Attempting Postgres connection...`);
+      
+      pool = new Pool({
+        connectionString: rawDbUrl,
+        ssl: { rejectUnauthorized: false }
+      });
+      
+      pool.on('error', (err) => {
+        console.error('[DB] Unexpected error on idle client', err);
+      });
+    } catch (e) {
+      console.error("[DB] Failed to initialize Postgres pool, falling back to SQLite", e);
+      usePostgres = false;
+    }
+  }
+
+  if (!usePostgres) {
+    console.log(`[DB] Using SQLite. Path: ${dbPath}`);
+    sqliteDb = new Database(dbPath);
+  }
+};
+
+initDatabase();
 
 // Helper for queries
 const query = async (text: string, params?: any[]) => {
@@ -57,14 +69,12 @@ const query = async (text: string, params?: any[]) => {
       let pgText = text;
       let pgParams = params || [];
       
-      // Simple regex to replace ? with $1, $2, etc.
       let index = 1;
       pgText = pgText.replace(/\?/g, () => `$${index++}`);
       
-      // Handle specific syntax differences
       pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
       pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
-      pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT"); // Simplified, ON CONFLICT handled separately
+      pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
       
       return await pool.query(pgText, pgParams);
     } else {
@@ -76,8 +86,11 @@ const query = async (text: string, params?: any[]) => {
         return { rowCount: result.changes, rows: [{ id: result.lastInsertRowid }] };
       }
     }
-  } catch (error) {
-    console.error(`[DB] Query Error: ${text}`, error);
+  } catch (error: any) {
+    console.error(`[DB] Query Error: ${text.substring(0, 100)}...`, error);
+    if (usePostgres && (error.code === 'ERR_INVALID_URL' || error.code === 'ECONNREFUSED')) {
+      console.error("[DB] Postgres connection failed, please check DATABASE_URL");
+    }
     throw error;
   }
 };
