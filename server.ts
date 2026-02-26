@@ -333,6 +333,7 @@ app.post("/api/admin/login", (req, res) => {
 });
 
 app.get("/api/admin/check", (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   if (req.session.isAdmin) {
     res.json({ success: true });
   } else {
@@ -341,7 +342,8 @@ app.get("/api/admin/check", (req, res) => {
 });
 
 app.post("/api/admin/logout", (req, res) => {
-  req.session.destroy(() => {
+  req.session.destroy((err) => {
+    res.clearCookie('connect.sid', { path: '/' });
     res.json({ success: true });
   });
 });

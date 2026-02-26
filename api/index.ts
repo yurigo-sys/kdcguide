@@ -169,11 +169,19 @@ app.post("/api/admin/login", (req, res) => {
 });
 
 app.get("/api/admin/check", (req, res) => {
-  res.json({ success: !!req.session.isAdmin });
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  if (req.session.isAdmin) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ success: false });
+  }
 });
 
 app.post("/api/admin/logout", (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
+  req.session.destroy((err) => {
+    res.clearCookie('connect.sid', { path: '/' });
+    res.json({ success: true });
+  });
 });
 
 app.get("/api/training-process", (req, res) => {
