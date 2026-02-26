@@ -36,22 +36,14 @@ const initDatabase = () => {
   
   if (usePostgres) {
     try {
-      // Try to handle passwords with special characters by encoding them if needed
-      // This is a common issue with Supabase passwords containing '#'
+      // Robustly handle passwords with special characters by encoding them
       let connectionString = rawDbUrl;
-      if (connectionString.includes("#") && !connectionString.includes("%23")) {
-        // Simple attempt to encode '#' in password part
-        const parts = connectionString.split("@");
-        if (parts.length > 1) {
-          const authPart = parts[0];
-          const hostPart = parts.slice(1).join("@");
-          const authParts = authPart.split(":");
-          if (authParts.length > 2) {
-            const user = authParts[0];
-            const pass = authParts.slice(1).join(":");
-            connectionString = `${user}:${pass.replace(/#/g, "%23")}@${hostPart}`;
-          }
-        }
+      const match = connectionString.match(/^(postgresql?:\/\/)([^:]+):(.+)@(.+)$/);
+      if (match) {
+        const [_, protocol, user, pass, rest] = match;
+        // Only encode if not already encoded
+        const encodedPass = pass.includes("%") ? pass : encodeURIComponent(pass);
+        connectionString = `${protocol}${user}:${encodedPass}@${rest}`;
       }
 
       console.log(`[DB] Attempting Postgres connection...`);
