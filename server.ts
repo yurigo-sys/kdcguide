@@ -14,12 +14,14 @@ const SqliteSessionStore = SQLiteStore(session);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("database.sqlite");
+const isVercel = process.env.VERCEL === "1";
+const dbPath = isVercel ? "/tmp/database.sqlite" : "database.sqlite";
+const db = new Database(dbPath);
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, "uploads");
+const uploadsDir = isVercel ? "/tmp/uploads" : path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // Configure multer for file uploads
@@ -107,10 +109,10 @@ if (settingsCount.count === 0) {
   insertSetting.run("contactInfo", "궁금한 점이 있다면 언제든 슬랙 채널 코멘토 매니저에게 문의해 주세요.");
   insertSetting.run("contactLinks", JSON.stringify([{ label: "문의하기", url: "#", icon: "MessageCircle" }]));
 } else {
-  // Ensure adminPassword key exists, but don't overwrite if it already does
-  const existing = db.prepare("SELECT * FROM settings WHERE key = 'adminPassword'").get();
-  if (!existing) {
-    db.prepare("INSERT INTO settings (key, value) VALUES ('adminPassword', 'comento0804')").run();
+  // Ensure adminPassword is set to the requested password
+  const existing = db.prepare("SELECT * FROM settings WHERE key = 'adminPassword'").get() as { value: string } | undefined;
+  if (!existing || existing.value !== "comento0804") {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('adminPassword', 'comento0804')").run();
   }
 }
 
@@ -130,8 +132,9 @@ if (faqCount.count === 0) {
   insertFaq.run("수료 기준이 궁금해요.", "진도율 80% 이상, 최종 과제 제출 시 수료 가능합니다.");
 }
 
+export const app = express();
+
 async function startServer() {
-  const app = express();
   const PORT = 3000;
 
   // Required for secure cookies to work behind a proxy (like Cloud Run/Nginx)
@@ -366,13 +369,13 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !isVercel) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!isVercel) {
     app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
@@ -382,9 +385,11 @@ async function startServer() {
   const currentPassword = db.prepare("SELECT value FROM settings WHERE key = 'adminPassword'").get() as { value: string };
   console.log(`[SERVER] Current Admin Password in DB: "${currentPassword?.value}"`);
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
 declare module 'express-session' {
