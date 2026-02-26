@@ -1,5 +1,6 @@
 import express from "express";
 import pg from "pg";
+import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
@@ -7,54 +8,114 @@ import fs from "fs";
 import cookieParser from "cookie-parser";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import SQLiteStore from "better-sqlite3-session-store";
 
 const pgSession = connectPg(session);
+const SqliteSessionStore = SQLiteStore(session);
 const { Pool } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isVercel = process.env.VERCEL === "1";
+const dbPath = isVercel ? "/tmp/database.sqlite" : path.join(__dirname, "../database.sqlite");
 const uploadsDir = isVercel ? "/tmp/uploads" : path.join(__dirname, "../uploads");
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+// Database Configuration
+const rawDbUrl = process.env.DATABASE_URL || "";
+const usePostgres = rawDbUrl.startsWith("postgres") && rawDbUrl.includes("@");
+let pool: pg.Pool | null = null;
+let sqliteDb: any = null;
+
+console.log(`[DB] Environment: ${isVercel ? "Vercel" : "Local"}`);
+console.log(`[DB] Using Postgres: ${usePostgres}`);
+if (usePostgres) {
+  const maskedUrl = rawDbUrl.replace(/:([^@]+)@/, ":****@");
+  console.log(`[DB] URL: ${maskedUrl}`);
+  pool = new Pool({
+    connectionString: rawDbUrl,
+    ssl: { rejectUnauthorized: false }
+  });
+  
+  pool.on('error', (err) => {
+    console.error('[DB] Unexpected error on idle client', err);
+  });
+} else {
+  console.log(`[DB] SQLite Path: ${dbPath}`);
+  sqliteDb = new Database(dbPath);
+}
 
 // Helper for queries
-const query = (text: string, params?: any[]) => pool.query(text, params);
+const query = async (text: string, params?: any[]) => {
+  try {
+    if (usePostgres && pool) {
+      // Convert SQLite syntax to PostgreSQL if necessary (e.g., ? to $1)
+      let pgText = text;
+      let pgParams = params || [];
+      
+      // Simple regex to replace ? with $1, $2, etc.
+      let index = 1;
+      pgText = pgText.replace(/\?/g, () => `$${index++}`);
+      
+      // Handle specific syntax differences
+      pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+      pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
+      pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT"); // Simplified, ON CONFLICT handled separately
+      
+      return await pool.query(pgText, pgParams);
+    } else {
+      const stmt = sqliteDb.prepare(text);
+      if (text.trim().toUpperCase().startsWith("SELECT")) {
+        return { rows: stmt.all(params || []) };
+      } else {
+        const result = stmt.run(params || []);
+        return { rowCount: result.changes, rows: [{ id: result.lastInsertRowid }] };
+      }
+    }
+  } catch (error) {
+    console.error(`[DB] Query Error: ${text}`, error);
+    throw error;
+  }
+};
 
 // Initialize database
 const initDb = async () => {
-  await query(`
-    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE IF NOT EXISTS posts (id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, category TEXT, icon TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-    CREATE TABLE IF NOT EXISTS training_process (id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, step_order INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, display_order INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS faqs (id SERIAL PRIMARY KEY, question TEXT NOT NULL, answer TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-    
-    CREATE TABLE IF NOT EXISTS "session" (
-      "sid" varchar NOT NULL COLLATE "default",
-      "sess" json NOT NULL,
-      "expire" timestamp(6) NOT NULL
-    ) WITH (OIDS=FALSE);
-    
-    DO $$
-    BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'session_pkey') THEN
-        ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
-      END IF;
-    END $$;
-    
-    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-  `);
+  if (usePostgres) {
+    await query(`
+      CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+      CREATE TABLE IF NOT EXISTS posts (id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, category TEXT, icon TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS training_process (id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, step_order INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, display_order INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS faqs (id SERIAL PRIMARY KEY, question TEXT NOT NULL, answer TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+      
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL
+      ) WITH (OIDS=FALSE);
+      
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'session_pkey') THEN
+          ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
+        END IF;
+      END $$;
+      
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+    `);
+  } else {
+    sqliteDb.exec(`
+      CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+      CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT NOT NULL, category TEXT, icon TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS training_process (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT NOT NULL, step_order INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, display_order INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS faqs (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL, answer TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+    `);
+  }
 
   // Seed initial data
   const initialDataPath = path.join(__dirname, "../initial-data.json");
@@ -71,7 +132,7 @@ const initDb = async () => {
   const postCount = parseInt(postCountRes.rows[0].count);
   if (postCount === 0 && initialData?.posts) {
     for (const p of initialData.posts) {
-      await query("INSERT INTO posts (title, content, category, icon) VALUES ($1, $2, $3, $4)", [p.title, p.content, p.category, p.icon]);
+      await query("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)", [p.title, p.content, p.category, p.icon]);
     }
   }
 
@@ -79,7 +140,7 @@ const initDb = async () => {
   const categoryCount = parseInt(categoryCountRes.rows[0].count);
   if (categoryCount === 0 && initialData?.categories) {
     for (const c of initialData.categories) {
-      await query("INSERT INTO categories (name, display_order) VALUES ($1, $2)", [c.name, c.display_order]);
+      await query("INSERT INTO categories (name, display_order) VALUES (?, ?)", [c.name, c.display_order]);
     }
   }
 
@@ -87,7 +148,7 @@ const initDb = async () => {
   const faqCount = parseInt(faqCountRes.rows[0].count);
   if (faqCount === 0 && initialData?.faqs) {
     for (const f of initialData.faqs) {
-      await query("INSERT INTO faqs (question, answer) VALUES ($1, $2)", [f.question, f.answer]);
+      await query("INSERT INTO faqs (question, answer) VALUES (?, ?)", [f.question, f.answer]);
     }
   }
 
@@ -95,7 +156,7 @@ const initDb = async () => {
   const processCount = parseInt(processCountRes.rows[0].count);
   if (processCount === 0 && initialData?.training_process) {
     for (const s of initialData.training_process) {
-      await query("INSERT INTO training_process (title, description, step_order) VALUES ($1, $2, $3)", [s.title, s.description, s.step_order]);
+      await query("INSERT INTO training_process (title, description, step_order) VALUES (?, ?, ?)", [s.title, s.description, s.step_order]);
     }
   }
 
@@ -104,10 +165,14 @@ const initDb = async () => {
   if (settingsCount === 0 && initialData?.settings) {
     for (const [key, value] of Object.entries(initialData.settings)) {
       const val = typeof value === "object" ? JSON.stringify(value) : String(value);
-      await query("INSERT INTO settings (key, value) VALUES ($1, $2)", [key, val]);
+      await query("INSERT INTO settings (key, value) VALUES (?, ?)", [key, val]);
     }
   } else {
-    await query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", ['adminPassword', 'comento0804']);
+    if (usePostgres) {
+      await query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2", ['adminPassword', 'comento0804']);
+    } else {
+      sqliteDb.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run('adminPassword', 'comento0804');
+    }
   }
 };
 
@@ -118,10 +183,7 @@ app.set('trust proxy', 1);
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
-  store: new pgSession({
-    pool: pool,
-    tableName: 'session'
-  }),
+  store: usePostgres ? new pgSession({ pool: pool!, tableName: 'session' }) : new SqliteSessionStore({ client: sqliteDb, expired: { clear: true, intervalMs: 900000 } }),
   secret: process.env.SESSION_SECRET || "comento-secret-key-12345",
   resave: false,
   saveUninitialized: false,
