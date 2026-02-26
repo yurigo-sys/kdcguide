@@ -102,8 +102,13 @@ if (settingsCount.count === 0) {
   insertSetting.run("contactInfo", "궁금한 점이 있다면 언제든 슬랙 채널 코멘토 매니저에게 문의해 주세요.");
   insertSetting.run("contactLinks", JSON.stringify([{ label: "문의하기", url: "#", icon: "MessageCircle" }]));
 } else {
-  // Force update if it's still the old default
-  db.prepare("UPDATE settings SET value = 'comento0804' WHERE key = 'adminPassword' AND value = 'admin1234'").run();
+  // Ensure adminPassword key exists and is set to the requested password
+  const existing = db.prepare("SELECT * FROM settings WHERE key = 'adminPassword'").get();
+  if (existing) {
+    db.prepare("UPDATE settings SET value = 'comento0804' WHERE key = 'adminPassword'").run();
+  } else {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('adminPassword', 'comento0804')").run();
+  }
 }
 
 const categoryCount = db.prepare("SELECT COUNT(*) as count FROM categories").get() as { count: number };
@@ -281,10 +286,17 @@ async function startServer() {
 
   app.post("/api/admin/login", (req, res) => {
     const { password } = req.body;
-    const setting = db.prepare("SELECT value FROM settings WHERE key = 'adminPassword'").get() as { value: string };
-    if (setting && setting.value === password) {
+    let setting = db.prepare("SELECT value FROM settings WHERE key = 'adminPassword'").get() as { value: string };
+    
+    // Fallback if not found in DB
+    const expectedPassword = setting ? setting.value : "comento0804";
+    
+    console.log(`[SERVER] Login attempt - Provided: "${password}", Expected: "${expectedPassword}"`);
+    if (password === expectedPassword) {
+      console.log(`[SERVER] Login successful`);
       res.json({ success: true });
     } else {
+      console.log(`[SERVER] Login failed`);
       res.status(401).json({ success: false, message: "비밀번호가 올바르지 않습니다." });
     }
   });
@@ -320,6 +332,9 @@ async function startServer() {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
+
+  const currentPassword = db.prepare("SELECT value FROM settings WHERE key = 'adminPassword'").get() as { value: string };
+  console.log(`[SERVER] Current Admin Password in DB: "${currentPassword?.value}"`);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
