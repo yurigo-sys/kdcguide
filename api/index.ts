@@ -86,24 +86,26 @@ app.get("/api/posts", (req, res) => {
 });
 
 app.get("/api/posts/:id", (req, res) => {
-  res.json(db.prepare("SELECT * FROM posts WHERE id = ?").get(req.params.id));
+  const post = db.prepare("SELECT * FROM posts WHERE id = ?").get(req.params.id);
+  if (!post) return res.status(404).json({ error: "Post not found" });
+  res.json(post);
 });
 
 app.post("/api/posts", (req, res) => {
   const { title, content, category, icon } = req.body;
   const info = db.prepare("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)").run(title, content, category, icon);
-  res.json({ id: info.lastInsertRowid });
+  res.json({ id: info.lastInsertRowid, success: true });
 });
 
 app.put("/api/posts/:id", (req, res) => {
   const { title, content, category, icon } = req.body;
-  db.prepare("UPDATE posts SET title = ?, content = ?, category = ?, icon = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(title, content, category, icon, req.params.id);
-  res.json({ success: true });
+  const result = db.prepare("UPDATE posts SET title = ?, content = ?, category = ?, icon = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(title, content, category, icon, req.params.id);
+  res.json({ success: result.changes > 0 });
 });
 
 app.post("/api/posts/delete", (req, res) => {
-  db.prepare("DELETE FROM posts WHERE id = ?").run(req.body.id);
-  res.json({ success: true });
+  const result = db.prepare("DELETE FROM posts WHERE id = ?").run(Number(req.body.id));
+  res.json({ success: true, changes: result.changes });
 });
 
 app.get("/api/settings", (req, res) => {
@@ -148,14 +150,21 @@ app.get("/api/faqs", (req, res) => {
   res.json(db.prepare("SELECT * FROM faqs ORDER BY updated_at DESC").all());
 });
 
+app.get("/api/faqs/:id", (req, res) => {
+  const faq = db.prepare("SELECT * FROM faqs WHERE id = ?").get(req.params.id);
+  if (!faq) return res.status(404).json({ error: "FAQ not found" });
+  res.json(faq);
+});
+
 app.post("/api/faqs", (req, res) => {
-  db.prepare("INSERT INTO faqs (question, answer) VALUES (?, ?)").run(req.body.question, req.body.answer);
-  res.json({ success: true });
+  const { question, answer } = req.body;
+  const info = db.prepare("INSERT INTO faqs (question, answer) VALUES (?, ?)").run(question, answer);
+  res.json({ success: true, id: info.lastInsertRowid });
 });
 
 app.post("/api/faqs/delete", (req, res) => {
-  db.prepare("DELETE FROM faqs WHERE id = ?").run(req.body.id);
-  res.json({ success: true });
+  const result = db.prepare("DELETE FROM faqs WHERE id = ?").run(Number(req.body.id));
+  res.json({ success: true, changes: result.changes });
 });
 
 app.post("/api/admin/login", (req, res) => {
