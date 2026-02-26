@@ -679,6 +679,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
   const [editingFaq, setEditingFaq] = useState<Partial<FAQ> | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [confirmDeleteFaqId, setConfirmDeleteFaqId] = useState<number | null>(null);
 
@@ -961,14 +962,87 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
           <h1 className="text-4xl font-bold text-slate-900 mb-2">관리자 대시보드</h1>
           <p className="text-slate-500 text-lg">가이드 콘텐츠와 사이트 설정을 관리하세요.</p>
         </div>
-        <button 
-          onClick={handleLogout}
-          className="px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
-        >
-          <LogOut size={18} />
-          로그아웃
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowExportModal(true)}
+            className="px-6 py-2 bg-brand/10 text-brand rounded-xl font-bold hover:bg-brand/20 transition-all flex items-center gap-2"
+          >
+            <Share2 size={18} />
+            데이터 백업
+          </button>
+          <button 
+            onClick={handleLogout}
+            className="px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
+          >
+            <LogOut size={18} />
+            로그아웃
+          </button>
+        </div>
       </div>
+
+      {/* Export Modal */}
+      <AnimatePresence>
+        {showExportModal && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowExportModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-8 md:p-12"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-slate-900">데이터 백업 (JSON)</h2>
+                <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-900">
+                  <X size={24} />
+                </button>
+              </div>
+              <p className="text-slate-500 mb-6">
+                Vercel 배포 환경에서는 데이터가 자주 초기화됩니다. 아래 내용을 복사하여 AI Studio의 <b>initial-data.json</b> 파일에 붙여넣고 다시 배포하시면 데이터가 영구적으로 보존됩니다.
+              </p>
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-6">
+                <pre className="text-xs font-mono overflow-auto max-h-[300px] whitespace-pre-wrap">
+                  {JSON.stringify({
+                    posts,
+                    categories,
+                    faqs,
+                    training_process: trainingSteps,
+                    settings: {
+                      ...settings,
+                      contactLinks: settings.contactLinks
+                    }
+                  }, null, 2)}
+                </pre>
+              </div>
+              <button 
+                onClick={() => {
+                  const json = JSON.stringify({
+                    posts,
+                    categories,
+                    faqs,
+                    training_process: trainingSteps,
+                    settings: {
+                      ...settings,
+                      contactLinks: settings.contactLinks
+                    }
+                  }, null, 2);
+                  navigator.clipboard.writeText(json);
+                  alert('클립보드에 복사되었습니다. initial-data.json 파일에 붙여넣어 주세요.');
+                }}
+                className="w-full py-4 bg-brand text-white rounded-2xl font-bold text-lg shadow-lg shadow-brand/20"
+              >
+                JSON 복사하기
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Settings Section */}
