@@ -5,6 +5,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import fs from "fs";
+import cookieParser from "cookie-parser";
+import session from "express-session";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,11 +104,9 @@ if (settingsCount.count === 0) {
   insertSetting.run("contactInfo", "궁금한 점이 있다면 언제든 슬랙 채널 코멘토 매니저에게 문의해 주세요.");
   insertSetting.run("contactLinks", JSON.stringify([{ label: "문의하기", url: "#", icon: "MessageCircle" }]));
 } else {
-  // Ensure adminPassword key exists and is set to the requested password
+  // Ensure adminPassword key exists, but don't overwrite if it already does
   const existing = db.prepare("SELECT * FROM settings WHERE key = 'adminPassword'").get();
-  if (existing) {
-    db.prepare("UPDATE settings SET value = 'comento0804' WHERE key = 'adminPassword'").run();
-  } else {
+  if (!existing) {
     db.prepare("INSERT INTO settings (key, value) VALUES ('adminPassword', 'comento0804')").run();
   }
 }
@@ -137,6 +137,18 @@ async function startServer() {
   });
 
   app.use(express.json());
+  app.use(cookieParser());
+  app.use(session({
+    secret: process.env.SESSION_SECRET || "comento-secret-key-12345",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production" || true, // AI Studio needs secure for iframes
+      sameSite: 'none', // Required for AI Studio iframes
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  }));
+
   app.use("/uploads", express.static(uploadsDir));
 
   // API Routes
@@ -294,11 +306,26 @@ async function startServer() {
     console.log(`[SERVER] Login attempt - Provided: "${password}", Expected: "${expectedPassword}"`);
     if (password === expectedPassword) {
       console.log(`[SERVER] Login successful`);
+      req.session.isAdmin = true;
       res.json({ success: true });
     } else {
       console.log(`[SERVER] Login failed`);
       res.status(401).json({ success: false, message: "비밀번호가 올바르지 않습니다." });
     }
+  });
+
+  app.get("/api/admin/check", (req, res) => {
+    if (req.session.isAdmin) {
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false });
+    }
+  });
+
+  app.post("/api/admin/logout", (req, res) => {
+    req.session.destroy(() => {
+      res.json({ success: true });
+    });
   });
 
   app.get("/api/training-process", (req, res) => {
@@ -339,6 +366,12 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+}
+
+declare module 'express-session' {
+  interface SessionData {
+    isAdmin: boolean;
+  }
 }
 
 startServer();
