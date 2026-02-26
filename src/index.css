@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #307FE2;
+  --font-sans: "Pretendard", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-slate-900 antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+.markdown-body h1 { @apply text-3xl font-bold mb-6 text-slate-900; }
+.markdown-body h2 { @apply text-2xl font-semibold mt-8 mb-4 text-slate-800; }
+.markdown-body p { @apply text-lg leading-relaxed mb-4 text-slate-600; }
+.markdown-body ul { @apply list-disc pl-6 mb-6 space-y-2 text-slate-600; }
+.markdown-body ol { @apply list-decimal pl-6 mb-6 space-y-2 text-slate-600; }
+.markdown-body li { @apply text-lg; }
+.markdown-body img { @apply rounded-2xl shadow-md my-8 max-w-full h-auto mx-auto; }
+.markdown-body a { @apply text-brand font-bold underline hover:text-brand/80 transition-colors; }
+.markdown-body strong { @apply font-bold text-slate-900; }
+.training-step-markdown p { @apply mb-0; }
+.training-step-markdown a { @apply underline decoration-2 underline-offset-4; }
