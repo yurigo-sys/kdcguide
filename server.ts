@@ -97,10 +97,13 @@ if (settingsCount.count === 0) {
   const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
   insertSetting.run("siteName", "'K-디지털 기초역량훈련' 학습 가이드");
   insertSetting.run("primaryColor", "#307FE2");
-  insertSetting.run("adminPassword", "admin1234"); // Default password
+  insertSetting.run("adminPassword", "comento0804"); // New default password
   insertSetting.run("logoUrl", "https://ais-dev-ysg7qkjpfxol2zs3cfwsoo-76360252009.asia-northeast1.run.app/logo.png");
   insertSetting.run("contactInfo", "궁금한 점이 있다면 언제든 슬랙 채널 코멘토 매니저에게 문의해 주세요.");
   insertSetting.run("contactLinks", JSON.stringify([{ label: "문의하기", url: "#", icon: "MessageCircle" }]));
+} else {
+  // Force update if it's still the old default
+  db.prepare("UPDATE settings SET value = 'comento0804' WHERE key = 'adminPassword' AND value = 'admin1234'").run();
 }
 
 const categoryCount = db.prepare("SELECT COUNT(*) as count FROM categories").get() as { count: number };
