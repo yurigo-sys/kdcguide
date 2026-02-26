@@ -322,7 +322,7 @@ app.post("/api/faqs/delete", async (req, res) => {
 });
 
 app.post("/api/admin/login", async (req, res) => {
-  const result = await query("SELECT value FROM settings WHERE key = ?");
+  const result = await query("SELECT value FROM settings WHERE key = ?", ['adminPassword']);
   const setting = result.rows[0];
   if (req.body.password === (setting?.value || "comento0804")) {
     (req.session as any).isAdmin = true;
