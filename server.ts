@@ -73,62 +73,50 @@ db.exec(`
 `);
 
 // Seed initial data if empty
-const postCount = db.prepare("SELECT COUNT(*) as count FROM posts").get() as { count: number };
-if (postCount.count === 0) {
-  const insertPost = db.prepare("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)");
-  insertPost.run(
-    "내일배움카드 신청 방법",
-    "# 내일배움카드 신청 가이드\n\n**내일배움카드**는 고용노동부에서 지원하는 카드입니다.\n\n![신청방법](https://picsum.photos/seed/card/800/400)\n\n1. [HRD-Net 접속](https://www.hrd.go.kr)\n2. 공인인증서 로그인\n3. 발급 신청서 작성\n4. 고용센터 심사 대기",
-    "준비단계",
-    "CreditCard"
-  );
-  insertPost.run(
-    "코멘토 학습 시스템 로그인 가이드",
-    "# 학습 시스템 이용 안내\n\n1. **코멘토 홈페이지** 접속\n2. '나의 강의실' 클릭\n3. 수강 중인 과정 선택",
-    "학습안내",
-    "LogIn"
-  );
-}
-
-const processCount = db.prepare("SELECT COUNT(*) as count FROM training_process").get() as { count: number };
-if (processCount.count === 0) {
-  const insertStep = db.prepare("INSERT INTO training_process (title, description, step_order) VALUES (?, ?, ?)");
-  insertStep.run("훈련 첫날 안내", "슬랙 채널에 입장하고 오리엔테이션 영상을 시청하세요.", 1);
-  insertStep.run("매일 학습 루틴", "강의를 수강하고 일일 회고를 작성합니다.", 2);
-  insertStep.run("과제 제출", "매주 정해진 기한 내에 실무 과제를 제출하세요.", 3);
-}
-
-const settingsCount = db.prepare("SELECT COUNT(*) as count FROM settings").get() as { count: number };
-if (settingsCount.count === 0) {
-  const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
-  insertSetting.run("siteName", "'K-디지털 기초역량훈련' 학습 가이드");
-  insertSetting.run("primaryColor", "#307FE2");
-  insertSetting.run("adminPassword", "comento0804"); // New default password
-  insertSetting.run("logoUrl", "https://ais-dev-ysg7qkjpfxol2zs3cfwsoo-76360252009.asia-northeast1.run.app/logo.png");
-  insertSetting.run("contactInfo", "궁금한 점이 있다면 언제든 슬랙 채널 코멘토 매니저에게 문의해 주세요.");
-  insertSetting.run("contactLinks", JSON.stringify([{ label: "문의하기", url: "#", icon: "MessageCircle" }]));
-} else {
-  // Ensure adminPassword is set to the requested password
-  const existing = db.prepare("SELECT * FROM settings WHERE key = 'adminPassword'").get() as { value: string } | undefined;
-  if (!existing || existing.value !== "comento0804") {
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('adminPassword', 'comento0804')").run();
+const initialDataPath = path.join(__dirname, "initial-data.json");
+let initialData: any = null;
+if (fs.existsSync(initialDataPath)) {
+  try {
+    initialData = JSON.parse(fs.readFileSync(initialDataPath, "utf-8"));
+  } catch (e) {
+    console.error("Error reading initial-data.json:", e);
   }
 }
 
-const categoryCount = db.prepare("SELECT COUNT(*) as count FROM categories").get() as { count: number };
-if (categoryCount.count === 0) {
-  const insertCategory = db.prepare("INSERT INTO categories (name, display_order) VALUES (?, ?)");
-  const defaultCategories = ["수강준비", "수강시작", "수강 중", "미션", "수료"];
-  defaultCategories.forEach((name, index) => {
-    insertCategory.run(name, index + 1);
+const postCount = db.prepare("SELECT COUNT(*) as count FROM posts").get() as { count: number };
+if (postCount.count === 0 && initialData?.posts) {
+  const insertPost = db.prepare("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)");
+  initialData.posts.forEach((p: any) => insertPost.run(p.title, p.content, p.category, p.icon));
+}
+
+const processCount = db.prepare("SELECT COUNT(*) as count FROM training_process").get() as { count: number };
+if (processCount.count === 0 && initialData?.training_process) {
+  const insertStep = db.prepare("INSERT INTO training_process (title, description, step_order) VALUES (?, ?, ?)");
+  initialData.training_process.forEach((s: any) => insertStep.run(s.title, s.description, s.step_order));
+}
+
+const settingsCount = db.prepare("SELECT COUNT(*) as count FROM settings").get() as { count: number };
+if (settingsCount.count === 0 && initialData?.settings) {
+  const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
+  Object.entries(initialData.settings).forEach(([key, value]) => {
+    const val = typeof value === "object" ? JSON.stringify(value) : String(value);
+    insertSetting.run(key, val);
   });
+} else {
+  // Always ensure adminPassword is correct
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('adminPassword', 'comento0804')").run();
+}
+
+const categoryCount = db.prepare("SELECT COUNT(*) as count FROM categories").get() as { count: number };
+if (categoryCount.count === 0 && initialData?.categories) {
+  const insertCategory = db.prepare("INSERT INTO categories (name, display_order) VALUES (?, ?)");
+  initialData.categories.forEach((c: any) => insertCategory.run(c.name, c.display_order));
 }
 
 const faqCount = db.prepare("SELECT COUNT(*) as count FROM faqs").get() as { count: number };
-if (faqCount.count === 0) {
+if (faqCount.count === 0 && initialData?.faqs) {
   const insertFaq = db.prepare("INSERT INTO faqs (question, answer) VALUES (?, ?)");
-  insertFaq.run("수강 신청은 어떻게 하나요?", "HRD-Net을 통해 신청 가능합니다.");
-  insertFaq.run("수료 기준이 궁금해요.", "진도율 80% 이상, 최종 과제 제출 시 수료 가능합니다.");
+  initialData.faqs.forEach((f: any) => insertFaq.run(f.question, f.answer));
 }
 
 export const app = express();

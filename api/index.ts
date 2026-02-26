@@ -45,19 +45,49 @@ db.exec(`
 `);
 
 // Seed initial data
+const initialDataPath = path.join(__dirname, "../initial-data.json");
+let initialData: any = null;
+if (fs.existsSync(initialDataPath)) {
+  try {
+    initialData = JSON.parse(fs.readFileSync(initialDataPath, "utf-8"));
+  } catch (e) {
+    console.error("Error reading initial-data.json:", e);
+  }
+}
+
 const postCount = db.prepare("SELECT COUNT(*) as count FROM posts").get() as { count: number };
-if (postCount.count === 0) {
+if (postCount.count === 0 && initialData?.posts) {
   const insertPost = db.prepare("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)");
-  insertPost.run("내일배움카드 신청 방법", "# 신청 가이드...", "준비단계", "CreditCard");
+  initialData.posts.forEach((p: any) => insertPost.run(p.title, p.content, p.category, p.icon));
+}
+
+const categoryCount = db.prepare("SELECT COUNT(*) as count FROM categories").get() as { count: number };
+if (categoryCount.count === 0 && initialData?.categories) {
+  const insertCategory = db.prepare("INSERT INTO categories (name, display_order) VALUES (?, ?)");
+  initialData.categories.forEach((c: any) => insertCategory.run(c.name, c.display_order));
+}
+
+const faqCount = db.prepare("SELECT COUNT(*) as count FROM faqs").get() as { count: number };
+if (faqCount.count === 0 && initialData?.faqs) {
+  const insertFaq = db.prepare("INSERT INTO faqs (question, answer) VALUES (?, ?)");
+  initialData.faqs.forEach((f: any) => insertFaq.run(f.question, f.answer));
+}
+
+const processCount = db.prepare("SELECT COUNT(*) as count FROM training_process").get() as { count: number };
+if (processCount.count === 0 && initialData?.training_process) {
+  const insertStep = db.prepare("INSERT INTO training_process (title, description, step_order) VALUES (?, ?, ?)");
+  initialData.training_process.forEach((s: any) => insertStep.run(s.title, s.description, s.step_order));
 }
 
 const settingsCount = db.prepare("SELECT COUNT(*) as count FROM settings").get() as { count: number };
-if (settingsCount.count === 0) {
+if (settingsCount.count === 0 && initialData?.settings) {
   const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
-  insertSetting.run("siteName", "'K-디지털 기초역량훈련' 학습 가이드");
-  insertSetting.run("primaryColor", "#307FE2");
-  insertSetting.run("adminPassword", "comento0804");
+  Object.entries(initialData.settings).forEach(([key, value]) => {
+    const val = typeof value === "object" ? JSON.stringify(value) : String(value);
+    insertSetting.run(key, val);
+  });
 } else {
+  // Always ensure adminPassword is correct
   db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('adminPassword', 'comento0804')").run();
 }
 

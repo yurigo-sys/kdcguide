@@ -1,0 +1,25 @@
+{
+  "posts": [],
+  "categories": [
+    { "name": "수강준비", "display_order": 1 },
+    { "name": "수강시작", "display_order": 2 },
+    { "name": "수강 중", "display_order": 3 },
+    { "name": "미션", "display_order": 4 },
+    { "name": "수료", "display_order": 5 }
+  ],
+  "faqs": [],
+  "training_process": [
+    { "title": "훈련 첫날 안내", "description": "슬랙 채널에 입장하고 오리엔테이션 영상을 시청하세요.", "step_order": 1 },
+    { "title": "매일 학습 루틴", "description": "강의를 수강하고 일일 회고를 작성합니다.", "step_order": 2 },
+    { "title": "과제 제출", "description": "매주 정해진 기한 내에 실무 과제를 제출하세요.", "step_order": 3 }
+  ],
+  "settings": {
+    "siteName": "'K-디지털 기초역량훈련' 학습 가이드",
+    "primaryColor": "#307FE2",
+    "adminPassword": "comento0804",
+    "contactInfo": "궁금한 점이 있다면 언제든 슬랙 채널 코멘토 매니저에게 문의해 주세요.",
+    "contactLinks": [
+      { "label": "문의하기", "url": "#", "icon": "MessageCircle" }
+    ]
+  }
+}
