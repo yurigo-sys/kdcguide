@@ -331,7 +331,7 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
           variants={titleVariants}
           className="text-xl md:text-3xl text-slate-500 max-w-4xl mx-auto leading-relaxed"
         >
-          국비지원훈련 과정을 원활하게 진행하실 수 있도록<br className="hidden sm:block" />
+          K-디지털 기초역량훈련 과정을 원활하게 진행하실 수 있도록<br className="hidden sm:block" />
           상세한 가이드를 제공해 드립니다.
         </motion.p>
       </section>
