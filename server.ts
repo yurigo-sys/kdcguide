@@ -7,6 +7,9 @@ import multer from "multer";
 import fs from "fs";
 import cookieParser from "cookie-parser";
 import session from "express-session";
+import SQLiteStore from "better-sqlite3-session-store";
+
+const SqliteSessionStore = SQLiteStore(session);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -142,12 +145,19 @@ async function startServer() {
   app.use(express.json());
   app.use(cookieParser());
   app.use(session({
+    store: new SqliteSessionStore({
+      client: db,
+      expired: {
+        clear: true,
+        intervalMs: 900000 // 15min
+      }
+    }),
     secret: process.env.SESSION_SECRET || "comento-secret-key-12345",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === "production" || true, // AI Studio needs secure for iframes
-      sameSite: 'none', // Required for AI Studio iframes
+      secure: true, 
+      sameSite: 'none', 
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   }));
@@ -310,7 +320,13 @@ async function startServer() {
     if (password === expectedPassword) {
       console.log(`[SERVER] Login successful`);
       req.session.isAdmin = true;
-      res.json({ success: true });
+      req.session.save((err) => {
+        if (err) {
+          console.error("[SERVER] Session save error:", err);
+          return res.status(500).json({ success: false, message: "세션 저장 중 오류가 발생했습니다." });
+        }
+        res.json({ success: true });
+      });
     } else {
       console.log(`[SERVER] Login failed`);
       res.status(401).json({ success: false, message: "비밀번호가 올바르지 않습니다." });
