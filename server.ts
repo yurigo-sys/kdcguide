@@ -10,9 +10,16 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import SQLiteStore from "better-sqlite3-session-store";
 
+import { createClient } from "@supabase/supabase-js";
+
 const pgSession = connectPg(session);
 const SqliteSessionStore = SQLiteStore(session);
 const { Pool } = pg;
+
+// Supabase Storage Setup (Optional)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,17 +248,48 @@ app.get("/api/db-status", (req, res) => {
   });
 });
 
-app.post("/api/upload", upload.single("image"), (req, res) => {
+app.post("/api/upload", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
+  
+  // If Supabase is configured, upload to Supabase Storage
+  if (supabase) {
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const fileName = `${Date.now()}-${req.file.filename}`;
+      const { data, error } = await supabase.storage
+        .from('uploads')
+        .upload(fileName, fileBuffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+      
+      if (error) throw error;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('uploads')
+        .getPublicUrl(fileName);
+        
+      // Clean up local file
+      fs.unlinkSync(req.file.path);
+      
+      return res.json({ success: true, url: publicUrl });
+    } catch (err: any) {
+      console.error('[Supabase Storage] Upload error:', err);
+      // Fallback to local if Supabase fails
+    }
+  }
+  
   res.json({ success: true, url: `/uploads/${req.file.filename}` });
 });
 
 app.get("/api/posts", async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const result = await query("SELECT * FROM posts ORDER BY updated_at DESC");
   res.json(result.rows);
 });
 
 app.get("/api/posts/:id", async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const result = await query("SELECT * FROM posts WHERE id = ?", [req.params.id]);
   const post = result.rows[0];
   if (!post) return res.status(404).json({ error: "Post not found" });
@@ -280,6 +318,7 @@ app.post("/api/posts/delete", async (req, res) => {
 });
 
 app.get("/api/settings", async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const result = await query("SELECT * FROM settings");
   res.json(result.rows.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}));
 });
@@ -299,6 +338,7 @@ app.post("/api/settings", async (req, res) => {
 });
 
 app.get("/api/categories", async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const result = await query("SELECT * FROM categories ORDER BY display_order ASC");
   res.json(result.rows);
 });
@@ -322,6 +362,7 @@ app.post("/api/categories/bulk", async (req, res) => {
 });
 
 app.get("/api/faqs", async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const result = await query("SELECT * FROM faqs ORDER BY updated_at DESC");
   res.json(result.rows);
 });

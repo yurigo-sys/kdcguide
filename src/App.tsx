@@ -1321,6 +1321,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
       if (res.ok) {
         alert(editingPost?.id ? '수정되었습니다.' : '저장되었습니다.');
         setEditingPost(null);
+        setGuidePage(1);
         await onRefresh();
       } else {
         const errorData = await res.json();
@@ -1346,6 +1347,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
       if (res.ok) {
         alert(editingFaq?.id ? '수정되었습니다.' : '저장되었습니다.');
         setEditingFaq(null);
+        setFaqPage(1);
         await onRefresh();
       } else {
         const errorData = await res.json();
