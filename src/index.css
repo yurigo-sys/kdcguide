@@ -1,9 +1,8 @@
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
 @import "tailwindcss";
 
 @theme {
   --color-brand: #307FE2;
-  --font-sans: "Pretendard", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Pretendard", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -24,14 +23,3 @@
 .markdown-body strong { @apply font-bold text-slate-900; }
 .training-step-markdown p { @apply mb-0; }
 .training-step-markdown a { @apply underline decoration-2 underline-offset-4; }
-
-.faq-answer-markdown p, .faq-answer-markdown li {
-  font-size: 1.375rem !important;
-  line-height: 1.6 !important;
-}
-
-@media (max-width: 768px) {
-  .faq-answer-markdown p, .faq-answer-markdown li {
-    font-size: 1.125rem !important;
-  }
-}
