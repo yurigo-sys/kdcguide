@@ -1234,6 +1234,9 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
       });
       const data = await res.json();
       if (data.success) {
+        if (data.url.startsWith('/uploads/')) {
+          alert('⚠️ 경고: Supabase 설정이 되어 있지 않아 이미지가 임시 저장소에 저장되었습니다. 새로고침 시 이미지가 사라질 수 있습니다. Vercel 환경 변수를 확인해 주세요.');
+        }
         return data.url;
       }
     } catch (error) {

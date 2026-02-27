@@ -20,18 +20,18 @@ const { Pool } = pg;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  console.log('[Supabase] Configuration missing:', { 
-    url: !!supabaseUrl, 
-    key: !!supabaseKey,
-    note: 'Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel env vars.' 
-  });
-}
+console.log('[Supabase] Checking environment variables...');
+console.log('[Supabase] URL exists:', !!supabaseUrl, supabaseUrl ? `(${supabaseUrl.substring(0, 10)}...)` : '(null)');
+console.log('[Supabase] Key exists:', !!supabaseKey, supabaseKey ? `(${supabaseKey.substring(0, 5)}...)` : '(null)');
 
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+const supabase = (supabaseUrl && supabaseKey && supabaseUrl.startsWith('http')) 
+  ? createClient(supabaseUrl, supabaseKey) 
+  : null;
 
 if (supabase) {
   console.log('[Supabase] Client initialized successfully.');
+} else {
+  console.log('[Supabase] Client failed to initialize. Check URL format and Key.');
 }
 
 const __filename = fileURLToPath(import.meta.url);
