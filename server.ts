@@ -93,7 +93,8 @@ const query = async (text: string, params?: any[]) => {
         let index = 1;
         pgText = pgText.replace(/\?/g, () => `$${index++}`);
         
-        pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+                pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+        pgText = pgText.replace(/TEXT/g, "VARCHAR");
         pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
         pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
       }
