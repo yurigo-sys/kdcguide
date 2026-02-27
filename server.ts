@@ -94,13 +94,11 @@ const query = async (text: string, params?: any[]) => {
         pgText = pgText.replace(/\?/g, () => `$${index++}`);
         
                 pgText = pgText.replace(/DATETIME DEFAULT CURRENT_TIMESTAMP/g, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-        pgText = pgText.replace(/TEXT/g, "VARCHAR");
         pgText = pgText.replace(/AUTOINCREMENT/g, "SERIAL");
         pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
       }
       
-      const result = await pool.query(pgText, pgParams);
-      return { ...result, rows: result.rows.map(row => ({...row})) };
+      return await pool.query(pgText, pgParams);
     } else {
       // For SQLite, ensure we don't have $1, $2 etc.
       let sqliteText = text.replace(/\$\d+/g, "?");
