@@ -250,14 +250,14 @@ app.get("/api/db-status", (req, res) => {
 
 app.post("/api/upload", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
-  
-  // If Supabase is configured, upload to Supabase Storage
+
   if (supabase) {
+    console.log('[Supabase] Supabase client is configured. Attempting upload...');
     try {
       const fileBuffer = fs.readFileSync(req.file.path);
       const fileName = `${Date.now()}-${req.file.filename}`;
       const { data, error } = await supabase.storage
-        .from('uploads')
+        .from('uploads') // Make sure this bucket exists and is public
         .upload(fileName, fileBuffer, {
           contentType: req.file.mimetype,
           upsert: true
@@ -269,14 +269,14 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
         .from('uploads')
         .getPublicUrl(fileName);
         
-      // Clean up local file
       fs.unlinkSync(req.file.path);
       
       return res.json({ success: true, url: publicUrl });
     } catch (err: any) {
       console.error('[Supabase Storage] Upload error:', err);
-      // Fallback to local if Supabase fails
     }
+  } else {
+    console.log('[Supabase] Supabase client is NOT configured. Falling back to local upload.');
   }
   
   res.json({ success: true, url: `/uploads/${req.file.filename}` });
@@ -297,13 +297,29 @@ app.get("/api/posts/:id", async (req, res) => {
 });
 
 app.post("/api/posts", async (req, res) => {
-  const { title = "", content = "", category = "일반", icon = "BookOpen" } = req.body;
-  const sql = usePostgres 
-    ? "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?) RETURNING id"
-    : "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)";
-  const result = await query(sql, [title, content, category, icon]);
-  const id = result.rows[0]?.id;
-  res.json({ id, success: true });
+  try {
+    const { title, content, category, icon } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ success: false, error: "Title and content are required." });
+    }
+
+    if (usePostgres) {
+      const result = await query(
+        "INSERT INTO posts (title, content, category, icon) VALUES ($1, $2, $3, $4) RETURNING id",
+        [title, content, category ?? '일반', icon ?? 'BookOpen']
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    } else {
+      const result = await query(
+        "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)",
+        [title, content, category ?? '일반', icon ?? 'BookOpen']
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    }
+  } catch (err) {
+    console.error("POST /api/posts error:", err);
+    return res.status(500).json({ success: false, error: "Server error while creating post." });
+  }
 });
 
 app.put("/api/posts/:id", async (req, res) => {
@@ -375,13 +391,29 @@ app.get("/api/faqs/:id", async (req, res) => {
 });
 
 app.post("/api/faqs", async (req, res) => {
-  const { question = "", answer = "" } = req.body;
-  const sql = usePostgres
-    ? "INSERT INTO faqs (question, answer) VALUES (?, ?) RETURNING id"
-    : "INSERT INTO faqs (question, answer) VALUES (?, ?)";
-  const result = await query(sql, [question, answer]);
-  const id = result.rows[0]?.id;
-  res.json({ success: true, id });
+  try {
+    const { question, answer } = req.body;
+    if (!question || !answer) {
+      return res.status(400).json({ success: false, error: "Question and answer are required." });
+    }
+
+    if (usePostgres) {
+      const result = await query(
+        "INSERT INTO faqs (question, answer) VALUES ($1, $2) RETURNING id",
+        [question, answer]
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    } else {
+      const result = await query(
+        "INSERT INTO faqs (question, answer) VALUES (?, ?)",
+        [question, answer]
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    }
+  } catch (err) {
+    console.error("POST /api/faqs error:", err);
+    return res.status(500).json({ success: false, error: "Server error while creating FAQ." });
+  }
 });
 
 app.post("/api/faqs/delete", async (req, res) => {
