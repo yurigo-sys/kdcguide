@@ -1319,10 +1319,11 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
         body: JSON.stringify(editingPost)
       });
       if (res.ok) {
-        alert(editingPost?.id ? '수정되었습니다.' : '저장되었습니다.');
-        setEditingPost(null);
+        await onRefresh(); // Refresh data first
+        setEditingPost(null); // Then close the modal
         setGuidePage(1);
-        await onRefresh();
+        alert(editingPost?.id ? '수정되었습니다.' : '저장되었습니다.'); // Then show alert
+        console.log('Post saved and refreshed!');
       } else {
         const errorData = await res.json();
         alert('저장에 실패했습니다: ' + (errorData.error || '알 수 없는 오류'));
@@ -1345,10 +1346,11 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
         body: JSON.stringify(editingFaq)
       });
       if (res.ok) {
-        alert(editingFaq?.id ? '수정되었습니다.' : '저장되었습니다.');
-        setEditingFaq(null);
+        await onRefresh(); // Refresh data first
+        setEditingFaq(null); // Then close the modal
         setFaqPage(1);
-        await onRefresh();
+        alert(editingFaq?.id ? '수정되었습니다.' : '저장되었습니다.'); // Then show alert
+        console.log('FAQ saved and refreshed!');
       } else {
         const errorData = await res.json();
         alert('저장에 실패했습니다: ' + (errorData.error || '알 수 없는 오류'));

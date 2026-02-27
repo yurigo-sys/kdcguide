@@ -98,7 +98,14 @@ const query = async (text: string, params?: any[]) => {
         pgText = pgText.replace(/INSERT OR REPLACE/g, "INSERT");
       }
       
-      return await pool.query(pgText, pgParams);
+      const result = await pool.query(pgText, pgParams);
+      if (pgText.toUpperCase().includes("INSERT") && pgText.toUpperCase().includes("RETURNING ID")) {
+        return { rowCount: result.rowCount, rows: result.rows };
+      } else if (pgText.toUpperCase().startsWith("SELECT")) {
+        return { rows: result.rows };
+      } else {
+        return { rowCount: result.rowCount, rows: [] };
+      }
     } else {
       // For SQLite, ensure we don't have $1, $2 etc.
       let sqliteText = text.replace(/\$\d+/g, "?");
@@ -417,6 +424,7 @@ app.post("/api/admin/logout", (req, res) => {
 });
 
 app.get("/api/training-process", async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const result = await query("SELECT * FROM training_process ORDER BY step_order ASC");
   res.json(result.rows);
 });
