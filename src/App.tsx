@@ -151,13 +151,13 @@ const RichTextEditor = ({
   onChange, 
   placeholder,
   className,
-  onImageUpload
+  uploadImage
 }: { 
   value: string, 
   onChange: (val: string) => void, 
   placeholder?: string,
   className?: string,
-  onImageUpload?: () => void
+  uploadImage?: (file: File) => Promise<string | null>
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -165,6 +165,7 @@ const RichTextEditor = ({
   const [imagePopover, setImagePopover] = useState<{ x: number, y: number, element: HTMLImageElement } | null>(null);
   const [isEditingLink, setIsEditingLink] = useState(false);
   const [tempLinkUrl, setTempLinkUrl] = useState('');
+  const savedRangeRef = useRef<Range | null>(null);
   const popoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const imgPopoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -200,6 +201,7 @@ const RichTextEditor = ({
     if (!selection || selection.rangeCount === 0) return;
     
     const range = selection.getRangeAt(0);
+    savedRangeRef.current = range.cloneRange();
     let rect = range.getBoundingClientRect();
     
     // 텍스트 선택이 없는 경우(커서만 있는 경우) 부모 요소의 위치를 참조
@@ -238,7 +240,12 @@ const RichTextEditor = ({
     if (linkPopover?.element) {
       linkPopover.element.setAttribute('href', url);
     } else {
+      editorRef.current?.focus();
       const selection = window.getSelection();
+      if (savedRangeRef.current) {
+        selection?.removeAllRanges();
+        selection?.addRange(savedRangeRef.current);
+      }
       const selectedText = selection?.toString() || '링크';
       const linkHtml = `<a href="${url}" target="_blank" class="text-brand font-bold underline">${selectedText}</a>`;
       document.execCommand('insertHTML', false, linkHtml);
@@ -308,6 +315,45 @@ const RichTextEditor = ({
     }
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    let hasImage = false;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        hasImage = true;
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file && uploadImage) {
+          const url = await uploadImage(file);
+          if (url) {
+            const imgHtml = `<img src="${url}" style="width: 100%; height: auto;" />`;
+            document.execCommand('insertHTML', false, imgHtml);
+            handleInput();
+          }
+        }
+      }
+    }
+  };
+
+  const handleImageButtonClick = () => {
+    if (!uploadImage) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const url = await uploadImage(file);
+        if (url) {
+          const imgHtml = `<img src="${url}" style="width: 100%; height: auto;" />`;
+          document.execCommand('insertHTML', false, imgHtml);
+          handleInput();
+        }
+      }
+    };
+    input.click();
+  };
+
   return (
     <div className={cn("relative border border-slate-200 rounded-2xl overflow-hidden bg-white transition-all", isFocused && "border-brand ring-4 ring-brand/5", className)}>
       <div className="flex items-center gap-1 p-2 border-b border-slate-100 bg-slate-50/50">
@@ -329,11 +375,11 @@ const RichTextEditor = ({
         >
           <LinkIcon size={18} />
         </button>
-        {onImageUpload && (
+        {uploadImage && (
           <button 
             type="button"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={onImageUpload}
+            onClick={handleImageButtonClick}
             className="p-2 hover:bg-white hover:text-brand rounded-lg transition-all text-slate-500"
             title="이미지 삽입"
           >
@@ -346,6 +392,7 @@ const RichTextEditor = ({
         ref={editorRef}
         contentEditable
         onInput={handleInput}
+        onPaste={handlePaste}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         onMouseOver={handleMouseOver}
@@ -1777,27 +1824,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                             newSteps[actualIdx] = { ...newSteps[actualIdx], description: val };
                             setTempSteps(newSteps);
                           }}
-                          onImageUpload={async () => {
-                            const input = document.createElement('input');
-                            input.type = 'file';
-                            input.accept = 'image/*';
-                            input.onchange = async (e) => {
-                              const file = (e.target as HTMLInputElement).files?.[0];
-                              if (file) {
-                                const url = await handleFileUpload(file);
-                                if (url) {
-                                  const newSteps = [...tempSteps];
-                                  const imgMarkdown = `\n![이미지](${url})\n`;
-                                  newSteps[actualIdx] = { 
-                                    ...newSteps[actualIdx], 
-                                    description: (newSteps[actualIdx].description || '') + imgMarkdown 
-                                  };
-                                  setTempSteps(newSteps);
-                                }
-                              }
-                            };
-                            input.click();
-                          }}
+                          uploadImage={handleFileUpload}
                           className="min-h-[150px]"
                         />
                       </div>
@@ -2173,22 +2200,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                   <RichTextEditor 
                     value={editingPost.content || ''}
                     onChange={(val) => setEditingPost({ ...editingPost, content: val })}
-                    onImageUpload={async () => {
-                      const input = document.createElement('input');
-                      input.type = 'file';
-                      input.accept = 'image/*';
-                      input.onchange = async (e) => {
-                        const file = (e.target as HTMLInputElement).files?.[0];
-                        if (file) {
-                          const url = await handleFileUpload(file);
-                          if (url) {
-                            const imgMarkdown = `\n![이미지](${url})\n`;
-                            setEditingPost({ ...editingPost, content: (editingPost.content || '') + imgMarkdown });
-                          }
-                        }
-                      };
-                      input.click();
-                    }}
+                    uploadImage={handleFileUpload}
                     className="min-h-[400px]"
                   />
                 </div>
@@ -2258,6 +2270,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                   <RichTextEditor 
                     value={editingFaq.answer || ''}
                     onChange={(val) => setEditingFaq({ ...editingFaq, answer: val })}
+                    uploadImage={handleFileUpload}
                     className="min-h-[300px]"
                   />
                 </div>
