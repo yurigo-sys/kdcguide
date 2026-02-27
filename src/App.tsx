@@ -1188,7 +1188,17 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
   const [showExportModal, setShowExportModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [confirmDeleteFaqId, setConfirmDeleteFaqId] = useState<number | null>(null);
-  const [dbStatus, setDbStatus] = useState<{ usePostgres: boolean, isVercel: boolean, supabaseConfigured: boolean } | null>(null);
+  const [dbStatus, setDbStatus] = useState<{ 
+    usePostgres: boolean, 
+    isVercel: boolean, 
+    supabaseConfigured: boolean,
+    diagnostics?: {
+      urlExists: boolean,
+      keyExists: boolean,
+      urlValid: boolean,
+      urlPrefix: string | null
+    }
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/db-status').then(res => res.json()).then(setDbStatus).catch(console.error);
@@ -1500,11 +1510,23 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                 {dbStatus.usePostgres ? "DB: Postgres (Persistent)" : "DB: SQLite (Ephemeral - Data will be lost on Vercel)"}
               </div>
               <div className={cn(
-                "px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border",
+                "px-4 py-2 rounded-xl text-xs font-bold flex flex-col gap-1 border",
                 dbStatus.supabaseConfigured ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"
               )}>
-                <div className={cn("w-2 h-2 rounded-full", dbStatus.supabaseConfigured ? "bg-emerald-500" : "bg-red-500 animate-pulse")} />
-                {dbStatus.supabaseConfigured ? "Storage: Supabase (Persistent)" : "Storage: Local (Ephemeral - Images will be lost on Vercel)"}
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-2 h-2 rounded-full", dbStatus.supabaseConfigured ? "bg-emerald-500" : "bg-red-500 animate-pulse")} />
+                  {dbStatus.supabaseConfigured ? "Storage: Supabase (Persistent)" : "Storage: Local (Ephemeral - Images will be lost on Vercel)"}
+                </div>
+                {!dbStatus.supabaseConfigured && dbStatus.diagnostics && (
+                  <div className="mt-1 pl-4 text-[10px] opacity-80 space-y-0.5">
+                    <p>• URL 설정: {dbStatus.diagnostics.urlExists ? '✅' : '❌ (SUPABASE_URL 없음)'}</p>
+                    <p>• KEY 설정: {dbStatus.diagnostics.keyExists ? '✅' : '❌ (SUPABASE_SERVICE_ROLE_KEY 없음)'}</p>
+                    {dbStatus.diagnostics.urlExists && !dbStatus.diagnostics.urlValid && (
+                      <p>• URL 형식 오류: http로 시작해야 합니다.</p>
+                    )}
+                    <p className="mt-1 text-slate-400 italic">※ 설정 후 Vercel에서 반드시 Redeploy 하세요.</p>
+                  </div>
+                )}
               </div>
             </>
           )}

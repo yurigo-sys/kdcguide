@@ -256,11 +256,22 @@ const upload = multer({ storage });
 // API Routes
 app.get("/api/db-status", (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  console.log('[Status Check] Supabase configured:', !!supabase, 'URL:', !!process.env.SUPABASE_URL, 'Key:', !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY));
+  const urlExists = !!process.env.SUPABASE_URL;
+  const keyExists = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY);
+  const urlValid = urlExists && process.env.SUPABASE_URL!.startsWith('http');
+  
+  console.log('[Status Check] Supabase configured:', !!supabase, 'URL:', urlExists, 'Key:', keyExists, 'Valid:', urlValid);
+  
   res.json({ 
     usePostgres, 
     isVercel,
     supabaseConfigured: !!supabase,
+    diagnostics: {
+      urlExists,
+      keyExists,
+      urlValid,
+      urlPrefix: urlExists ? process.env.SUPABASE_URL!.substring(0, 10) : null
+    },
     dbPath: isVercel ? "/tmp/database.sqlite" : dbPath
   });
 });
