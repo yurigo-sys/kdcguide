@@ -99,13 +99,7 @@ const query = async (text: string, params?: any[]) => {
       }
       
       const result = await pool.query(pgText, pgParams);
-      if (pgText.toUpperCase().includes("INSERT") && pgText.toUpperCase().includes("RETURNING ID")) {
-        return { rowCount: result.rowCount, rows: result.rows };
-      } else if (pgText.toUpperCase().startsWith("SELECT")) {
-        return { rows: result.rows };
-      } else {
-        return { rowCount: result.rowCount, rows: [] };
-      }
+      return { ...result, rows: result.rows.map(row => ({...row})) };
     } else {
       // For SQLite, ensure we don't have $1, $2 etc.
       let sqliteText = text.replace(/\$\d+/g, "?");
@@ -308,19 +302,9 @@ app.post("/api/posts", async (req, res) => {
   const sql = usePostgres 
     ? "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?) RETURNING id"
     : "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)";
-  try {
-    const result = await query(sql, [title, content, category, icon]);
-    if (result.rows && result.rows.length > 0 && result.rows[0].id) {
-      const id = result.rows[0].id;
-      res.json({ id, success: true });
-    } else {
-      console.error("Insert post operation did not return an ID.", { result });
-      res.status(500).json({ success: false, error: "Post creation failed to return an ID." });
-    }
-  } catch (error) {
-    console.error("Error creating post:", error);
-    res.status(500).json({ success: false, error: "An error occurred while creating the post." });
-  }
+  const result = await query(sql, [title, content, category, icon]);
+  const id = result.rows[0]?.id;
+  res.json({ id, success: true });
 });
 
 app.put("/api/posts/:id", async (req, res) => {
@@ -396,19 +380,9 @@ app.post("/api/faqs", async (req, res) => {
   const sql = usePostgres
     ? "INSERT INTO faqs (question, answer) VALUES (?, ?) RETURNING id"
     : "INSERT INTO faqs (question, answer) VALUES (?, ?)";
-  try {
-    const result = await query(sql, [question, answer]);
-    if (result.rows && result.rows.length > 0 && result.rows[0].id) {
-      const id = result.rows[0].id;
-      res.json({ id, success: true });
-    } else {
-      console.error("Insert FAQ operation did not return an ID.", { result });
-      res.status(500).json({ success: false, error: "FAQ creation failed to return an ID." });
-    }
-  } catch (error) {
-    console.error("Error creating FAQ:", error);
-    res.status(500).json({ success: false, error: "An error occurred while creating the FAQ." });
-  }
+  const result = await query(sql, [question, answer]);
+  const id = result.rows[0]?.id;
+  res.json({ success: true, id });
 });
 
 app.post("/api/faqs/delete", async (req, res) => {
