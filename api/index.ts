@@ -258,9 +258,23 @@ app.get("/api/posts/:id", async (req, res) => {
 });
 
 app.post("/api/posts", async (req, res) => {
-  const { title, content, category, icon } = req.body;
-  const result = await query("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)", [title, content, category, icon]);
-  res.json({ id: result.rows[0].id, success: true });
+  try {
+    const { title, content, category, icon } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ success: false, error: "title/content required" });
+    }
+
+    const result = await query(
+      "INSERT INTO posts (title, content, category, icon) VALUES ($1, $2, $3, $4) RETURNING id",
+      [title, content, category ?? null, icon ?? null]
+    );
+
+    return res.json({ id: result.rows[0].id, success: true });
+  } catch (err) {
+    console.error("POST /api/posts error:", err);
+    return res.status(500).json({ success: false, error: "server error" });
+  }
 });
 
 app.put("/api/posts/:id", async (req, res) => {
