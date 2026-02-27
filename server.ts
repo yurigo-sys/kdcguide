@@ -222,6 +222,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || "comento-secret-key-12345",
   resave: false,
   saveUninitialized: false,
+  rolling: true, // Keep session active on user activity
   cookie: { secure: true, sameSite: 'none', maxAge: 24 * 60 * 60 * 1000 }
 }));
 
@@ -249,7 +250,9 @@ app.get("/api/db-status", (req, res) => {
 });
 
 app.post("/api/upload", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "No file uploaded" });
+  }
 
   if (supabase) {
     console.log('[Supabase] Supabase client is configured. Attempting upload...');
@@ -263,23 +266,31 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
           upsert: true
         });
       
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       
       const { data: { publicUrl } } = supabase.storage
         .from('uploads')
         .getPublicUrl(fileName);
         
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(req.file.path); // Clean up local temp file
       
-      return res.json({ success: true, url: publicUrl });
+      console.log('[Supabase] Upload successful. URL:', publicUrl);
+      return res.json({ success: true, url: publicUrl }); // Success case
     } catch (err: any) {
       console.error('[Supabase Storage] Upload error:', err);
+      // Clean up local file even on failure
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(500).json({ success: false, message: "Supabase upload failed.", error: err.message }); // Failure case
     }
   } else {
-    console.log('[Supabase] Supabase client is NOT configured. Falling back to local upload.');
+    // This is the fallback case
+    console.log('[Supabase] Supabase client is NOT configured. Falling back to temporary local upload.');
+    return res.json({ success: true, url: `/uploads/${req.file.filename}` });
   }
-  
-  res.json({ success: true, url: `/uploads/${req.file.filename}` });
 });
 
 app.get("/api/posts", async (req, res) => {
