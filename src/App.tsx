@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import TurndownService from 'turndown';
@@ -801,6 +802,7 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
               <h3 className="text-xl md:text-2xl font-bold text-slate-900 mt-4 mb-3 md:mb-4">{step.title}</h3>
               <div className="text-slate-500 text-base md:text-lg leading-relaxed markdown-body training-step-markdown">
                 <Markdown
+                  rehypePlugins={[rehypeRaw]}
                   components={{
                     img: ({node, ...props}) => <img {...props} key={props.src} className="rounded-2xl shadow-sm border border-slate-100 max-w-full h-auto" />
                   }}
@@ -1024,7 +1026,14 @@ const GuideDetail = () => {
         </header>
 
         <div className="markdown-body">
-          <Markdown>{post.content}</Markdown>
+          <Markdown 
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              img: ({node, ...props}) => <img {...props} key={props.src} className="rounded-2xl shadow-sm border border-slate-100 max-w-full h-auto" />
+            }}
+          >
+            {post.content}
+          </Markdown>
         </div>
 
         <div className="mt-16 pt-12 border-t border-slate-100 flex flex-wrap gap-4 items-center justify-between">
@@ -1086,7 +1095,14 @@ const FAQDetail = () => {
         </header>
 
         <div className="markdown-body faq-answer-markdown">
-          <Markdown>{faq.answer}</Markdown>
+          <Markdown 
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              img: ({node, ...props}) => <img {...props} key={props.src} className="rounded-2xl shadow-sm border border-slate-100 max-w-full h-auto" />
+            }}
+          >
+            {faq.answer}
+          </Markdown>
         </div>
 
         <div className="mt-16 pt-12 border-t border-slate-100">
