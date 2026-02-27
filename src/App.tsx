@@ -162,9 +162,11 @@ const RichTextEditor = ({
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [linkPopover, setLinkPopover] = useState<{ x: number, y: number, href: string, element: HTMLAnchorElement } | null>(null);
+  const [imagePopover, setImagePopover] = useState<{ x: number, y: number, element: HTMLImageElement } | null>(null);
   const [isEditingLink, setIsEditingLink] = useState(false);
   const [tempLinkUrl, setTempLinkUrl] = useState('');
   const popoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const imgPopoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize content and handle external updates
   useEffect(() => {
@@ -248,18 +250,35 @@ const RichTextEditor = ({
   };
 
   const handleMouseOver = (e: React.MouseEvent) => {
-    if (isEditingLink) return;
     const target = e.target as HTMLElement;
+    
+    // Handle Links
     const anchor = target.closest('a');
-    if (anchor) {
+    if (anchor && !isEditingLink) {
       if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
       const rect = anchor.getBoundingClientRect();
       setLinkPopover({
         x: rect.left,
-        y: rect.bottom, // fixed 포지션이므로 window.scrollY를 더하지 않음
+        y: rect.bottom,
         href: anchor.getAttribute('href') || '',
         element: anchor as HTMLAnchorElement
       });
+      setImagePopover(null);
+      return;
+    }
+
+    // Handle Images
+    const img = target.closest('img');
+    if (img) {
+      if (imgPopoverTimeoutRef.current) clearTimeout(imgPopoverTimeoutRef.current);
+      const rect = img.getBoundingClientRect();
+      setImagePopover({
+        x: rect.left,
+        y: rect.top,
+        element: img as HTMLImageElement
+      });
+      setLinkPopover(null);
+      return;
     }
   };
 
@@ -267,7 +286,26 @@ const RichTextEditor = ({
     if (isEditingLink) return;
     popoverTimeoutRef.current = setTimeout(() => {
       setLinkPopover(null);
-    }, 500); // 사용자가 마우스를 옮길 시간을 더 줌
+    }, 500);
+    imgPopoverTimeoutRef.current = setTimeout(() => {
+      setImagePopover(null);
+    }, 500);
+  };
+
+  const resizeImage = (width: string) => {
+    if (imagePopover?.element) {
+      imagePopover.element.style.width = width;
+      imagePopover.element.style.height = 'auto';
+      handleInput();
+    }
+  };
+
+  const deleteImage = () => {
+    if (imagePopover?.element) {
+      imagePopover.element.remove();
+      handleInput();
+      setImagePopover(null);
+    }
   };
 
   return (
@@ -316,6 +354,7 @@ const RichTextEditor = ({
         spellCheck={false}
       />
 
+      {/* Link Popover */}
       {linkPopover && (
         <div 
           className="fixed z-[100] bg-slate-900 text-white p-1.5 rounded-xl shadow-2xl border border-white/10 flex items-center gap-2"
@@ -397,8 +436,31 @@ const RichTextEditor = ({
               </button>
             </div>
           )}
-          {/* Speech bubble tail */}
           <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-900 rotate-45 border-l border-t border-white/10" />
+        </div>
+      )}
+
+      {/* Image Popover */}
+      {imagePopover && (
+        <div 
+          className="fixed z-[100] bg-slate-900 text-white p-1 rounded-xl shadow-2xl border border-white/10 flex items-center gap-1"
+          style={{ left: imagePopover.x, top: imagePopover.y - 45 }}
+          onMouseEnter={() => {
+            if (imgPopoverTimeoutRef.current) clearTimeout(imgPopoverTimeoutRef.current);
+          }}
+          onMouseLeave={handleMouseLeave}
+        >
+          <button onClick={() => resizeImage('25%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">25%</button>
+          <button onClick={() => resizeImage('50%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">50%</button>
+          <button onClick={() => resizeImage('100%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">100%</button>
+          <div className="w-px h-3 bg-white/10 mx-1" />
+          <button 
+            onClick={deleteImage}
+            className="p-1.5 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
+          <div className="absolute -bottom-1 left-4 w-2 h-2 bg-slate-900 rotate-45 border-r border-b border-white/10" />
         </div>
       )}
     </div>
@@ -969,12 +1031,68 @@ const FAQDetail = () => {
   );
 };
 
+const Pagination = ({ 
+  totalItems, 
+  itemsPerPage, 
+  currentPage, 
+  onPageChange 
+}: { 
+  totalItems: number, 
+  itemsPerPage: number, 
+  currentPage: number, 
+  onPageChange: (page: number) => void 
+}) => {
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-2 mt-8">
+      <button 
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(currentPage - 1)}
+        className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronRight size={20} className="rotate-180" />
+      </button>
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+        <button 
+          key={page}
+          onClick={() => onPageChange(page)}
+          className={cn(
+            "w-10 h-10 rounded-lg font-bold transition-all",
+            currentPage === page 
+              ? "bg-brand text-white shadow-lg shadow-brand/20" 
+              : "text-slate-500 hover:bg-slate-100"
+          )}
+        >
+          {page}
+        </button>
+      ))}
+      <button 
+        disabled={currentPage === totalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+        className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronRight size={20} />
+      </button>
+    </div>
+  );
+};
+
 const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRefresh }: { posts: Post[], settings: SiteSettings, trainingSteps: TrainingStep[], categories: Category[], faqs: FAQ[], onRefresh: () => void }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingLogin, setIsCheckingLogin] = useState(true);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   
+  // Search & Pagination States
+  const [guideSearch, setGuideSearch] = useState('');
+  const [faqSearch, setFaqSearch] = useState('');
+  const [guidePage, setGuidePage] = useState(1);
+  const [faqPage, setFaqPage] = useState(1);
+  const [trainingPage, setTrainingPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
   const [isEditingSettings, setIsEditingSettings] = useState(false);
   const [isEditingSteps, setIsEditingSteps] = useState(false);
   const [isEditingContactLinks, setIsEditingContactLinks] = useState(false);
@@ -1619,79 +1737,89 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
             </div>
             
             <div className="space-y-4">
-              {tempSteps.map((step, idx) => (
-                <div key={idx} className="p-6 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
-                  {isEditingSteps ? (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 bg-brand text-white rounded-md flex items-center justify-center text-xs font-bold">
-                            {idx + 1}
-                          </span>
-                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">단계 {idx + 1}</span>
+              {tempSteps.slice((trainingPage - 1) * ITEMS_PER_PAGE, trainingPage * ITEMS_PER_PAGE).map((step, idx) => {
+                const actualIdx = (trainingPage - 1) * ITEMS_PER_PAGE + idx;
+                return (
+                  <div key={actualIdx} className="p-6 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    {isEditingSteps ? (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 bg-brand text-white rounded-md flex items-center justify-center text-xs font-bold">
+                              {actualIdx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">단계 {actualIdx + 1}</span>
+                          </div>
+                          <button 
+                            onClick={() => setTempSteps(tempSteps.filter((_, i) => i !== actualIdx))}
+                            className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
-                        <button 
-                          onClick={() => setTempSteps(tempSteps.filter((_, i) => i !== idx))}
-                          className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                      <input 
-                        type="text" 
-                        value={step.title}
-                        onChange={e => {
-                          const newSteps = [...tempSteps];
-                          newSteps[idx] = { ...newSteps[idx], title: e.target.value };
-                          setTempSteps(newSteps);
-                        }}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-base font-bold outline-none focus:border-brand bg-white"
-                        placeholder="단계 제목 (예: 1. 서류 접수)"
-                      />
-                      <RichTextEditor 
-                        value={step.description || ''}
-                        onChange={(val) => {
-                          const newSteps = [...tempSteps];
-                          newSteps[idx] = { ...newSteps[idx], description: val };
-                          setTempSteps(newSteps);
-                        }}
-                        onImageUpload={async () => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = 'image/*';
-                          input.onchange = async (e) => {
-                            const file = (e.target as HTMLInputElement).files?.[0];
-                            if (file) {
-                              const url = await handleFileUpload(file);
-                              if (url) {
-                                const newSteps = [...tempSteps];
-                                const imgMarkdown = `\n![이미지](${url})\n`;
-                                newSteps[idx] = { 
-                                  ...newSteps[idx], 
-                                  description: (newSteps[idx].description || '') + imgMarkdown 
-                                };
-                                setTempSteps(newSteps);
+                        <input 
+                          type="text" 
+                          value={step.title}
+                          onChange={e => {
+                            const newSteps = [...tempSteps];
+                            newSteps[actualIdx] = { ...newSteps[actualIdx], title: e.target.value };
+                            setTempSteps(newSteps);
+                          }}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-base font-bold outline-none focus:border-brand bg-white"
+                          placeholder="단계 제목 (예: 1. 서류 접수)"
+                        />
+                        <RichTextEditor 
+                          value={step.description || ''}
+                          onChange={(val) => {
+                            const newSteps = [...tempSteps];
+                            newSteps[actualIdx] = { ...newSteps[actualIdx], description: val };
+                            setTempSteps(newSteps);
+                          }}
+                          onImageUpload={async () => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = async (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0];
+                              if (file) {
+                                const url = await handleFileUpload(file);
+                                if (url) {
+                                  const newSteps = [...tempSteps];
+                                  const imgMarkdown = `\n![이미지](${url})\n`;
+                                  newSteps[actualIdx] = { 
+                                    ...newSteps[actualIdx], 
+                                    description: (newSteps[actualIdx].description || '') + imgMarkdown 
+                                  };
+                                  setTempSteps(newSteps);
+                                }
                               }
-                            }
-                          };
-                          input.click();
-                        }}
-                        className="min-h-[150px]"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-4">
-                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-brand font-bold border border-slate-100 shrink-0">
-                        {idx + 1}
+                            };
+                            input.click();
+                          }}
+                          className="min-h-[150px]"
+                        />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-slate-900 mb-1 truncate">{step.title}</h3>
-                        <p className="text-sm text-slate-500 line-clamp-2">{stripMarkdown(step.description)}</p>
+                    ) : (
+                      <div className="flex items-start gap-4">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-brand font-bold border border-slate-100 shrink-0">
+                          {actualIdx + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-slate-900 mb-1 truncate">{step.title}</h3>
+                          <p className="text-sm text-slate-500 line-clamp-2">{stripMarkdown(step.description)}</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
+
+              <Pagination 
+                totalItems={tempSteps.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                currentPage={trainingPage}
+                onPageChange={setTrainingPage}
+              />
 
               {isEditingSteps && (
                 <button 
@@ -1716,7 +1844,24 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
         <div className="lg:col-span-2 space-y-8">
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <h2 className="text-2xl font-bold text-slate-900">가이드 목록</h2>
+              <div className="flex flex-col gap-2 flex-1">
+                <h2 className="text-2xl font-bold text-slate-900">가이드 목록</h2>
+                <div className="relative max-w-xs">
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+                    <Search size={14} />
+                  </div>
+                  <input 
+                    type="text" 
+                    value={guideSearch}
+                    onChange={e => {
+                      setGuideSearch(e.target.value);
+                      setGuidePage(1);
+                    }}
+                    placeholder="가이드 검색..."
+                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:border-brand outline-none transition-all"
+                  />
+                </div>
+              </div>
               <button 
                 onClick={() => setEditingPost({ title: '', content: '', category: '일반', icon: 'BookOpen' })}
                 className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm shadow-lg shadow-brand/20 hover:scale-105 transition-all"
@@ -1765,63 +1910,100 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
             </div>
 
             <div className="divide-y divide-slate-50">
-              {posts.map(post => (
-                <div key={post.id} className="p-8 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                  <div className="flex items-center gap-6">
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand/10 group-hover:text-brand transition-colors">
-                      {(() => {
-                        const Icon = ICON_MAP[post.icon] || BookOpen;
-                        return <Icon size={24} />;
-                      })()}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">{post.title}</h3>
-                      <p className="text-slate-400 font-medium">{post.category} • {new Date(post.updated_at).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setEditingPost(post)}
-                      className="p-3 text-slate-400 hover:text-brand hover:bg-brand/5 rounded-xl transition-all"
-                    >
-                      <Edit size={20} />
-                    </button>
-                    {confirmDeleteId === post.id ? (
-                      <div className="flex items-center gap-1">
-                        <button 
-                          onClick={() => {
-                            handleDeletePost(post.id);
-                            setConfirmDeleteId(null);
-                          }}
-                          className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
-                        >
-                          삭제확인
-                        </button>
-                        <button 
-                          onClick={() => setConfirmDeleteId(null)}
-                          className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors"
-                        >
-                          취소
-                        </button>
+              {(() => {
+                const filtered = posts.filter(p => 
+                  p.title.toLowerCase().includes(guideSearch.toLowerCase()) || 
+                  p.category.toLowerCase().includes(guideSearch.toLowerCase())
+                );
+                const paginated = filtered.slice((guidePage - 1) * ITEMS_PER_PAGE, guidePage * ITEMS_PER_PAGE);
+                
+                return (
+                  <>
+                    {paginated.map(post => (
+                      <div key={post.id} className="p-8 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+                        <div className="flex items-center gap-6">
+                          <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand/10 group-hover:text-brand transition-colors">
+                            {(() => {
+                              const Icon = ICON_MAP[post.icon] || BookOpen;
+                              return <Icon size={24} />;
+                            })()}
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900 mb-1">{post.title}</h3>
+                            <p className="text-slate-400 font-medium">{post.category} • {new Date(post.updated_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setEditingPost(post)}
+                            className="p-3 text-slate-400 hover:text-brand hover:bg-brand/5 rounded-xl transition-all"
+                          >
+                            <Edit size={20} />
+                          </button>
+                          {confirmDeleteId === post.id ? (
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => {
+                                  handleDeletePost(post.id);
+                                  setConfirmDeleteId(null);
+                                }}
+                                className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                              >
+                                삭제확인
+                              </button>
+                              <button 
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setConfirmDeleteId(post.id)}
+                              className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <button 
-                        onClick={() => setConfirmDeleteId(post.id)}
-                        className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                    ))}
+                    <div className="p-4 bg-slate-50/30">
+                      <Pagination 
+                        totalItems={filtered.length}
+                        itemsPerPage={ITEMS_PER_PAGE}
+                        currentPage={guidePage}
+                        onPageChange={setGuidePage}
+                      />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
 
           {/* FAQ List */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-slate-900">자주 묻는 질문 관리</h2>
+            <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex flex-col gap-2 flex-1">
+                <h2 className="text-2xl font-bold text-slate-900">자주 묻는 질문 관리</h2>
+                <div className="relative max-w-xs">
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+                    <Search size={14} />
+                  </div>
+                  <input 
+                    type="text" 
+                    value={faqSearch}
+                    onChange={e => {
+                      setFaqSearch(e.target.value);
+                      setFaqPage(1);
+                    }}
+                    placeholder="FAQ 검색..."
+                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:border-brand outline-none transition-all"
+                  />
+                </div>
+              </div>
               <button 
                 onClick={() => setEditingFaq({ question: '', answer: '' })}
                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
@@ -1831,53 +2013,73 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
               </button>
             </div>
             <div className="divide-y divide-slate-50">
-              {faqs.map(faq => (
-                <div key={faq.id} className="p-8 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                  <div className="flex items-center gap-6">
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand/10 group-hover:text-brand transition-colors shrink-0">
-                      <HelpCircle size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{faq.question}</h3>
-                      <p className="text-slate-400 font-medium">{new Date(faq.updated_at).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setEditingFaq(faq)}
-                      className="p-3 text-slate-400 hover:text-brand hover:bg-brand/5 rounded-xl transition-all"
-                    >
-                      <Edit size={20} />
-                    </button>
-                    {confirmDeleteFaqId === faq.id ? (
-                      <div className="flex items-center gap-1">
-                        <button 
-                          onClick={() => {
-                            handleDeleteFaq(faq.id);
-                            setConfirmDeleteFaqId(null);
-                          }}
-                          className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
-                        >
-                          삭제확인
-                        </button>
-                        <button 
-                          onClick={() => setConfirmDeleteFaqId(null)}
-                          className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors"
-                        >
-                          취소
-                        </button>
+              {(() => {
+                const filtered = faqs.filter(f => 
+                  f.question.toLowerCase().includes(faqSearch.toLowerCase()) || 
+                  f.answer.toLowerCase().includes(faqSearch.toLowerCase())
+                );
+                const paginated = filtered.slice((faqPage - 1) * ITEMS_PER_PAGE, faqPage * ITEMS_PER_PAGE);
+
+                return (
+                  <>
+                    {paginated.map(faq => (
+                      <div key={faq.id} className="p-8 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+                        <div className="flex items-center gap-6">
+                          <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand/10 group-hover:text-brand transition-colors shrink-0">
+                            <HelpCircle size={24} />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{faq.question}</h3>
+                            <p className="text-slate-400 font-medium">{new Date(faq.updated_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setEditingFaq(faq)}
+                            className="p-3 text-slate-400 hover:text-brand hover:bg-brand/5 rounded-xl transition-all"
+                          >
+                            <Edit size={20} />
+                          </button>
+                          {confirmDeleteFaqId === faq.id ? (
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => {
+                                  handleDeleteFaq(faq.id);
+                                  setConfirmDeleteFaqId(null);
+                                }}
+                                className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                              >
+                                삭제확인
+                              </button>
+                              <button 
+                                onClick={() => setConfirmDeleteFaqId(null)}
+                                className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setConfirmDeleteFaqId(faq.id)}
+                              className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <button 
-                        onClick={() => setConfirmDeleteFaqId(faq.id)}
-                        className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                    ))}
+                    <div className="p-4 bg-slate-50/30">
+                      <Pagination 
+                        totalItems={filtered.length}
+                        itemsPerPage={ITEMS_PER_PAGE}
+                        currentPage={faqPage}
+                        onPageChange={setFaqPage}
+                      />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
