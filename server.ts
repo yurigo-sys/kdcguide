@@ -255,6 +255,8 @@ const upload = multer({ storage });
 
 // API Routes
 app.get("/api/db-status", (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  console.log('[Status Check] Supabase configured:', !!supabase, 'URL:', !!process.env.SUPABASE_URL, 'Key:', !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY));
   res.json({ 
     usePostgres, 
     isVercel,
