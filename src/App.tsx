@@ -641,19 +641,19 @@ const FAQDetail = () => {
       <article className="bg-white rounded-[40px] p-6 md:p-16 border border-slate-100 shadow-sm">
         <header className="mb-8 md:mb-12 border-b border-slate-100 pb-8 md:pb-12">
           <div className="flex items-center gap-4 mb-4 md:mb-6">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-brand text-white rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl font-bold">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-brand text-white rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl font-bold shrink-0">
               Q
             </div>
             <span className="text-slate-400 text-xs md:text-sm">
               최종 업데이트: {new Date(faq.updated_at).toLocaleDateString()}
             </span>
           </div>
-          <h1 className="text-2xl md:text-5xl font-bold text-slate-900 leading-tight">
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight">
             {faq.question}
           </h1>
         </header>
 
-        <div className="markdown-body">
+        <div className="markdown-body faq-answer-markdown">
           <Markdown>{faq.answer}</Markdown>
         </div>
 
@@ -1251,6 +1251,18 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                         type="button"
                         onClick={() => {
                           const newSteps = [...editingSteps];
+                          newSteps[idx].description = (newSteps[idx].description || '') + ' **굵은텍스트**';
+                          setEditingSteps(newSteps);
+                        }}
+                        className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-brand transition-all border border-slate-100"
+                        title="굵게"
+                      >
+                        <Bold size={14} />
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newSteps = [...editingSteps];
                           newSteps[idx].description = (newSteps[idx].description || '') + ' [링크텍스트](https://)';
                           setEditingSteps(newSteps);
                         }}
@@ -1447,11 +1459,11 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
               {faqs.map(faq => (
                 <div key={faq.id} className="p-8 flex items-center justify-between hover:bg-slate-50 transition-colors group">
                   <div className="flex items-center gap-6">
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand/10 group-hover:text-brand transition-colors">
+                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-brand/10 group-hover:text-brand transition-colors shrink-0">
                       <HelpCircle size={24} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">{faq.question}</h3>
+                      <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{faq.question}</h3>
                       <p className="text-slate-400 font-medium">{new Date(faq.updated_at).toLocaleDateString()}</p>
                     </div>
                   </div>
