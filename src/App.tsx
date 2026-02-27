@@ -198,11 +198,21 @@ const RichTextEditor = ({
     if (!selection || selection.rangeCount === 0) return;
     
     const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
+    let rect = range.getBoundingClientRect();
     
+    // 텍스트 선택이 없는 경우(커서만 있는 경우) 부모 요소의 위치를 참조
+    if (rect.width === 0 && rect.height === 0) {
+      const parent = range.startContainer.parentElement;
+      if (parent) rect = parent.getBoundingClientRect();
+    }
+
+    // 에디터 밖으로 나가는 것 방지
+    const editorRect = editorRef.current?.getBoundingClientRect();
+    if (!editorRect) return;
+
     setLinkPopover({
       x: rect.left,
-      y: rect.bottom + window.scrollY,
+      y: rect.bottom, // fixed 포지션이므로 window.scrollY를 더하지 않음
       href: '',
       element: null as any
     });
@@ -217,14 +227,18 @@ const RichTextEditor = ({
       return;
     }
 
+    // URL 프로토콜 자동 추가 (http가 없는 경우)
+    let url = tempLinkUrl;
+    if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('#')) {
+      url = 'https://' + url;
+    }
+
     if (linkPopover?.element) {
-      // Editing existing link
-      linkPopover.element.setAttribute('href', tempLinkUrl);
+      linkPopover.element.setAttribute('href', url);
     } else {
-      // Creating new link
       const selection = window.getSelection();
       const selectedText = selection?.toString() || '링크';
-      const linkHtml = `<a href="${tempLinkUrl}" target="_blank">${selectedText}</a>`;
+      const linkHtml = `<a href="${url}" target="_blank" class="text-brand font-bold underline">${selectedText}</a>`;
       document.execCommand('insertHTML', false, linkHtml);
     }
     
@@ -242,7 +256,7 @@ const RichTextEditor = ({
       const rect = anchor.getBoundingClientRect();
       setLinkPopover({
         x: rect.left,
-        y: rect.bottom + window.scrollY,
+        y: rect.bottom, // fixed 포지션이므로 window.scrollY를 더하지 않음
         href: anchor.getAttribute('href') || '',
         element: anchor as HTMLAnchorElement
       });
@@ -253,7 +267,7 @@ const RichTextEditor = ({
     if (isEditingLink) return;
     popoverTimeoutRef.current = setTimeout(() => {
       setLinkPopover(null);
-    }, 300);
+    }, 500); // 사용자가 마우스를 옮길 시간을 더 줌
   };
 
   return (
@@ -325,8 +339,8 @@ const RichTextEditor = ({
                     setLinkPopover(null);
                   }
                 }}
-                placeholder="https://..."
-                className="bg-transparent border-none outline-none text-xs w-32 placeholder:text-white/30"
+                placeholder="링크 주소 입력..."
+                className="bg-transparent border-none outline-none text-xs w-40 placeholder:text-white/30"
               />
               <button 
                 onClick={saveLink}
@@ -346,7 +360,16 @@ const RichTextEditor = ({
             </div>
           ) : (
             <div className="flex items-center gap-1 px-1">
-              <span className="max-w-[120px] truncate opacity-50 text-[10px] mr-1">{linkPopover.href}</span>
+              <a 
+                href={linkPopover.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2 py-1 hover:bg-white/20 rounded-lg transition-colors font-bold text-[11px] text-emerald-400"
+              >
+                <ExternalLink size={12} />
+                방문
+              </a>
+              <div className="w-px h-3 bg-white/10 mx-1" />
               <button 
                 type="button"
                 onClick={() => {
@@ -355,7 +378,7 @@ const RichTextEditor = ({
                 }}
                 className="px-2 py-1 hover:bg-white/20 rounded-lg transition-colors font-bold text-[11px]"
               >
-                수정하기
+                수정
               </button>
               <button 
                 type="button"
