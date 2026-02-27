@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
 import { 
   BookOpen, 
   ChevronRight, 
@@ -31,17 +31,55 @@ import {
   Bold,
   Upload,
   Hand,
-  Search
+  Search,
+  CheckCircle2,
+  ArrowRight,
+  Save,
+  Share,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  MoreVertical,
+  Copy,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import TurndownService from 'turndown';
+import { marked } from 'marked';
 
 // --- Utilities ---
+const turndownService = new TurndownService({
+  headingStyle: 'atx',
+  codeBlockStyle: 'fenced'
+});
+
+// Configure marked for simple HTML output
+marked.setOptions({
+  breaks: true,
+  gfm: true
+});
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+const stripMarkdown = (text: string) => {
+  if (!text) return '';
+  return text
+    .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links but keep text
+    .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+    .replace(/\*(.*?)\*/g, '$1')     // Remove italic
+    .replace(/#{1,6}\s+(.*)/g, '$1') // Remove headers
+    .replace(/`{1,3}.*?`{1,3}/gs, '') // Remove code blocks
+    .replace(/>\s+(.*)/g, '$1')      // Remove blockquotes
+    .replace(/\n/g, ' ')             // Replace newlines with spaces
+    .replace(/\s+/g, ' ')            // Collapse multiple spaces
+    .trim();
+};
 
 const ICON_MAP: Record<string, any> = {
   BookOpen,
@@ -108,6 +146,197 @@ interface SiteSettings {
 
 // --- Components ---
 
+const RichTextEditor = ({ 
+  value, 
+  onChange, 
+  placeholder,
+  className,
+  onImageUpload
+}: { 
+  value: string, 
+  onChange: (val: string) => void, 
+  placeholder?: string,
+  className?: string,
+  onImageUpload?: () => void
+}) => {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const [linkPopover, setLinkPopover] = useState<{ x: number, y: number, href: string, element: HTMLAnchorElement } | null>(null);
+  const popoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize content and handle external updates
+  useEffect(() => {
+    if (editorRef.current) {
+      const currentHtml = editorRef.current.innerHTML;
+      const currentMarkdown = turndownService.turndown(currentHtml);
+      
+      if (value !== currentMarkdown) {
+        const html = marked.parse(value || '');
+        editorRef.current.innerHTML = typeof html === 'string' ? html : '';
+      }
+    }
+  }, [value]);
+
+  const handleInput = () => {
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      const markdown = turndownService.turndown(html);
+      onChange(markdown);
+    }
+  };
+
+  const execCommand = (command: string, val: string | undefined = undefined) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false, val);
+    handleInput();
+  };
+
+  const handleAddLink = () => {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString() || '';
+    
+    const url = prompt('링크 URL을 입력하세요 (예: https://...):');
+    if (!url) return;
+
+    if (!selectedText) {
+      const text = prompt('표시할 텍스트를 입력하세요:', '링크');
+      if (text) {
+        const linkHtml = `<a href="${url}" target="_blank">${text}</a>`;
+        document.execCommand('insertHTML', false, linkHtml);
+      }
+    } else {
+      execCommand('createLink', url);
+    }
+    handleInput();
+  };
+
+  const handleMouseOver = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (anchor) {
+      if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
+      const rect = anchor.getBoundingClientRect();
+      setLinkPopover({
+        x: rect.left,
+        y: rect.bottom + window.scrollY,
+        href: anchor.getAttribute('href') || '',
+        element: anchor as HTMLAnchorElement
+      });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    popoverTimeoutRef.current = setTimeout(() => {
+      setLinkPopover(null);
+    }, 300);
+  };
+
+  return (
+    <div className={cn("relative border border-slate-200 rounded-2xl overflow-hidden bg-white transition-all", isFocused && "border-brand ring-4 ring-brand/5", className)}>
+      <div className="flex items-center gap-1 p-2 border-b border-slate-100 bg-slate-50/50">
+        <button 
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => execCommand('bold')}
+          className="p-2 hover:bg-white hover:text-brand rounded-lg transition-all text-slate-500"
+          title="굵게"
+        >
+          <Bold size={18} />
+        </button>
+        <button 
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleAddLink}
+          className="p-2 hover:bg-white hover:text-brand rounded-lg transition-all text-slate-500"
+          title="링크 삽입"
+        >
+          <LinkIcon size={18} />
+        </button>
+        {onImageUpload && (
+          <button 
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onImageUpload}
+            className="p-2 hover:bg-white hover:text-brand rounded-lg transition-all text-slate-500"
+            title="이미지 삽입"
+          >
+            <ImageIcon size={18} />
+          </button>
+        )}
+      </div>
+      
+      <div 
+        ref={editorRef}
+        contentEditable
+        onInput={handleInput}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        onMouseOver={handleMouseOver}
+        onMouseLeave={handleMouseLeave}
+        className="p-6 min-h-[200px] outline-none prose prose-slate max-w-none prose-a:text-brand prose-a:font-bold prose-a:underline prose-strong:font-bold prose-img:rounded-2xl prose-img:shadow-sm prose-img:border prose-img:border-slate-100"
+      />
+
+      {linkPopover && (
+        <div 
+          className="fixed z-[100] bg-slate-900 text-white p-2 rounded-xl text-xs flex items-center gap-3 shadow-xl border border-white/10"
+          style={{ left: linkPopover.x, top: linkPopover.y + 8 }}
+          onMouseEnter={() => {
+            if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
+          }}
+          onMouseLeave={() => setLinkPopover(null)}
+        >
+          <span className="max-w-[150px] truncate opacity-70">{linkPopover.href}</span>
+          <div className="flex gap-1">
+            <button 
+              type="button"
+              onClick={() => {
+                const newUrl = prompt('새 링크 URL을 입력하세요:', linkPopover.href);
+                if (newUrl) {
+                  linkPopover.element.setAttribute('href', newUrl);
+                  handleInput();
+                }
+                setLinkPopover(null);
+              }}
+              className="px-2 py-1 hover:bg-white/20 rounded-lg transition-colors font-bold"
+            >
+              수정
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                const newText = prompt('표시할 텍스트를 수정하세요:', linkPopover.element.innerText);
+                if (newText) {
+                  linkPopover.element.innerText = newText;
+                  handleInput();
+                }
+                setLinkPopover(null);
+              }}
+              className="px-2 py-1 hover:bg-white/20 rounded-lg transition-colors font-bold"
+            >
+              텍스트
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                const parent = linkPopover.element.parentNode;
+                while (linkPopover.element.firstChild) {
+                  parent?.insertBefore(linkPopover.element.firstChild, linkPopover.element);
+                }
+                parent?.removeChild(linkPopover.element);
+                handleInput();
+                setLinkPopover(null);
+              }}
+              className="px-2 py-1 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors font-bold"
+            >
+              제거
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Header = ({ settings, scrollContainerRef }: { settings: SiteSettings, scrollContainerRef?: React.RefObject<HTMLDivElement> }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
@@ -139,6 +368,7 @@ const Header = ({ settings, scrollContainerRef }: { settings: SiteSettings, scro
         <div className="flex justify-between items-center h-20">
           <Link to="/" className="flex items-center gap-3">
             <img 
+              key={settings.logoUrl}
               src={settings.logoUrl || "https://ais-dev-ysg7qkjpfxol2zs3cfwsoo-76360252009.asia-northeast1.run.app/logo.png"} 
               alt="Logo" 
               className="w-10 h-10 rounded-lg object-cover"
@@ -210,7 +440,7 @@ const GuideCard = ({ post }: { post: Post }) => {
           {post.title}
         </h3>
         <p className="text-slate-500 line-clamp-2 text-lg mb-6 leading-relaxed">
-          {post.content.replace(/[#*]/g, '').substring(0, 100)}...
+          {stripMarkdown(post.content).substring(0, 100)}...
         </p>
         <div className="flex items-center text-brand font-bold text-lg">
           자세히 보기
@@ -374,7 +604,13 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
               </div>
               <h3 className="text-xl md:text-2xl font-bold text-slate-900 mt-4 mb-3 md:mb-4">{step.title}</h3>
               <div className="text-slate-500 text-base md:text-lg leading-relaxed markdown-body training-step-markdown">
-                <Markdown>{step.description}</Markdown>
+                <Markdown
+                  components={{
+                    img: ({node, ...props}) => <img {...props} key={props.src} className="rounded-2xl shadow-sm border border-slate-100 max-w-full h-auto" />
+                  }}
+                >
+                  {step.description}
+                </Markdown>
               </div>
             </motion.div>
           ))}
@@ -672,9 +908,11 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
   const [loginError, setLoginError] = useState('');
   
   const [isEditingSettings, setIsEditingSettings] = useState(false);
+  const [isEditingSteps, setIsEditingSteps] = useState(false);
+  const [isEditingContactLinks, setIsEditingContactLinks] = useState(false);
   const [tempSettings, setTempSettings] = useState(settings);
   const [editingPost, setEditingPost] = useState<Partial<Post> | null>(null);
-  const [editingSteps, setEditingSteps] = useState<TrainingStep[]>(trainingSteps);
+  const [tempSteps, setTempSteps] = useState<TrainingStep[]>(trainingSteps);
   const [editingCategories, setEditingCategories] = useState<Category[]>(categories);
   const [editingFaq, setEditingFaq] = useState<Partial<FAQ> | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -683,15 +921,6 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [confirmDeleteFaqId, setConfirmDeleteFaqId] = useState<number | null>(null);
   const [dbStatus, setDbStatus] = useState<{ usePostgres: boolean, isVercel: boolean } | null>(null);
-
-  // Editor states
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
-  const [linkDialog, setLinkDialog] = useState<{ isOpen: boolean, type: 'link' | 'image', target: 'post' | 'faq' | 'step', stepIdx?: number } | null>(null);
-  const [linkData, setLinkData] = useState({ text: '', url: '' });
-  
-  const postContentRef = useRef<HTMLTextAreaElement>(null);
-  const faqContentRef = useRef<HTMLTextAreaElement>(null);
-  const stepContentRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
   useEffect(() => {
     fetch('/api/db-status').then(res => res.json()).then(setDbStatus).catch(console.error);
@@ -718,18 +947,12 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
   }, [categories]);
 
   useEffect(() => {
-    setEditingSteps(trainingSteps);
+    setTempSteps(trainingSteps);
   }, [trainingSteps]);
 
   useEffect(() => {
     setTempSettings(settings);
   }, [settings]);
-
-  useEffect(() => {
-    if (!editingPost && !editingFaq) {
-      setIsPreviewMode(false);
-    }
-  }, [editingPost, editingFaq]);
 
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
@@ -783,9 +1006,10 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
     await fetch('/api/training-process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ steps: editingSteps })
+      body: JSON.stringify({ steps: tempSteps })
     });
     alert('훈련 과정이 저장되었습니다.');
+    setIsEditingSteps(false);
     onRefresh();
   };
 
@@ -827,6 +1051,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
         body: JSON.stringify(editingPost)
       });
       if (res.ok) {
+        alert(editingPost?.id ? '수정되었습니다.' : '저장되었습니다.');
         setEditingPost(null);
         onRefresh();
       } else {
@@ -850,6 +1075,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
         body: JSON.stringify(editingFaq)
       });
       if (res.ok) {
+        alert(editingFaq?.id ? '수정되었습니다.' : '저장되었습니다.');
         setEditingFaq(null);
         onRefresh();
       } else {
@@ -915,96 +1141,6 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
       console.error('Save failed:', error);
       alert('저장 중 오류가 발생했습니다.');
     }
-  };
-
-  const insertMarkdown = (tag: string, target: 'post' | 'faq' | 'step', stepIdx?: number) => {
-    let textarea: HTMLTextAreaElement | null = null;
-    let currentContent = '';
-    let setContent: (val: string) => void = () => {};
-
-    if (target === 'post' && editingPost) {
-      textarea = postContentRef.current;
-      currentContent = editingPost.content || '';
-      setContent = (val) => setEditingPost({ ...editingPost, content: val });
-    } else if (target === 'faq' && editingFaq) {
-      textarea = faqContentRef.current;
-      currentContent = editingFaq.answer || '';
-      setContent = (val) => setEditingFaq({ ...editingFaq, answer: val });
-    } else if (target === 'step' && stepIdx !== undefined) {
-      textarea = stepContentRefs.current[stepIdx];
-      currentContent = editingSteps[stepIdx].description || '';
-      setContent = (val) => {
-        const newSteps = [...editingSteps];
-        newSteps[stepIdx].description = val;
-        setEditingSteps(newSteps);
-      };
-    }
-
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = currentContent.substring(start, end);
-
-    if (tag === 'bold') {
-      const snippet = selectedText ? `**${selectedText}**` : '**굵은 텍스트**';
-      const newContent = currentContent.substring(0, start) + snippet + currentContent.substring(end);
-      setContent(newContent);
-      
-      // Reset focus and selection
-      setTimeout(() => {
-        textarea?.focus();
-        const newPos = start + (selectedText ? selectedText.length + 4 : 8);
-        textarea?.setSelectionRange(start + 2, start + 2 + (selectedText ? selectedText.length : 5));
-      }, 0);
-    } else if (tag === 'link' || tag === 'image') {
-      setLinkData({ text: selectedText || (tag === 'link' ? '링크 텍스트' : '이미지 설명'), url: '' });
-      setLinkDialog({ isOpen: true, type: tag, target, stepIdx });
-    }
-  };
-
-  const handleLinkConfirm = () => {
-    if (!linkDialog) return;
-    const { type, target, stepIdx } = linkDialog;
-    let textarea: HTMLTextAreaElement | null = null;
-    let currentContent = '';
-    let setContent: (val: string) => void = () => {};
-
-    if (target === 'post' && editingPost) {
-      textarea = postContentRef.current;
-      currentContent = editingPost.content || '';
-      setContent = (val) => setEditingPost({ ...editingPost, content: val });
-    } else if (target === 'faq' && editingFaq) {
-      textarea = faqContentRef.current;
-      currentContent = editingFaq.answer || '';
-      setContent = (val) => setEditingFaq({ ...editingFaq, answer: val });
-    } else if (target === 'step' && stepIdx !== undefined) {
-      textarea = stepContentRefs.current[stepIdx];
-      currentContent = editingSteps[stepIdx].description || '';
-      setContent = (val) => {
-        const newSteps = [...editingSteps];
-        newSteps[stepIdx].description = val;
-        setEditingSteps(newSteps);
-      };
-    }
-
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const snippet = type === 'link' 
-      ? `[${linkData.text}](${linkData.url})` 
-      : `![${linkData.text}](${linkData.url})`;
-    
-    const newContent = currentContent.substring(0, start) + snippet + currentContent.substring(end);
-    setContent(newContent);
-    setLinkDialog(null);
-    
-    setTimeout(() => {
-      textarea?.focus();
-      const newPos = start + snippet.length;
-      textarea?.setSelectionRange(newPos, newPos);
-    }, 0);
   };
 
   const handleLogout = async () => {
@@ -1198,13 +1334,26 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
               <div>
                 <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">로고 설정</label>
                 {isEditingSettings ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {tempSettings.logoUrl && (
+                      <div className="relative w-20 h-20 group">
+                        <img 
+                          key={tempSettings.logoUrl}
+                          src={tempSettings.logoUrl} 
+                          alt="Logo Preview" 
+                          className="w-full h-full rounded-2xl object-cover border border-slate-100 shadow-sm" 
+                        />
+                        <div className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-[10px] text-white font-bold">미리보기</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <input 
                         type="text" 
                         value={tempSettings.logoUrl}
                         onChange={e => setTempSettings({...tempSettings, logoUrl: e.target.value})}
-                        className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                        className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand text-sm"
                         placeholder="로고 이미지 URL"
                       />
                       <label className="cursor-pointer px-4 py-3 bg-slate-100 rounded-xl text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center">
@@ -1213,11 +1362,14 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                           type="file" 
                           className="hidden" 
                           accept="image/*"
-                          onChange={async (e) => {
+                          onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const url = await handleFileUpload(file);
-                              if (url) setTempSettings({...tempSettings, logoUrl: url});
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setTempSettings({...tempSettings, logoUrl: reader.result as string});
+                              };
+                              reader.readAsDataURL(file);
                             }
                           }}
                         />
@@ -1226,7 +1378,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <img src={settings.logoUrl} alt="Logo" className="w-8 h-8 rounded object-cover border border-slate-100" />
+                    <img key={settings.logoUrl} src={settings.logoUrl} alt="Logo" className="w-10 h-10 rounded-xl object-cover border border-slate-100" />
                     <p className="text-sm text-slate-500 truncate max-w-[150px]">{settings.logoUrl}</p>
                   </div>
                 )}
@@ -1258,66 +1410,6 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                   <p className="text-lg font-medium text-slate-900">{settings.contactInfo || '설정된 문구가 없습니다.'}</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">문의처 링크 관리</label>
-                <div className="space-y-4">
-                  {(tempSettings.contactLinks || []).map((link, idx) => (
-                    <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 relative group">
-                      {isEditingSettings ? (
-                        <>
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-bold text-slate-400">링크 {idx + 1}</span>
-                            <button 
-                              onClick={() => {
-                                const newLinks = (tempSettings.contactLinks || []).filter((_, i) => i !== idx);
-                                setTempSettings({...tempSettings, contactLinks: newLinks});
-                              }}
-                              className="text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                          <input 
-                            type="text" 
-                            value={link.label}
-                            onChange={e => {
-                              const newLinks = [...(tempSettings.contactLinks || [])];
-                              newLinks[idx].label = e.target.value;
-                              setTempSettings({...tempSettings, contactLinks: newLinks});
-                            }}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-brand"
-                            placeholder="버튼 이름"
-                          />
-                          <input 
-                            type="text" 
-                            value={link.url}
-                            onChange={e => {
-                              const newLinks = [...(tempSettings.contactLinks || [])];
-                              newLinks[idx].url = e.target.value;
-                              setTempSettings({...tempSettings, contactLinks: newLinks});
-                            }}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-brand"
-                            placeholder="URL"
-                          />
-                        </>
-                      ) : (
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-slate-700">{link.label}</span>
-                          <span className="text-xs text-slate-400 truncate max-w-[150px]">{link.url}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {isEditingSettings && (
-                    <button 
-                      onClick={() => setTempSettings({...tempSettings, contactLinks: [...(tempSettings.contactLinks || []), { label: '', url: '', icon: 'MessageCircle' }]})}
-                      className="w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm font-bold hover:border-brand hover:text-brand transition-all"
-                    >
-                      + 링크 추가
-                    </button>
-                  )}
-                </div>
-              </div>
               {isEditingSettings && (
                 <button 
                   onClick={handleSaveSettings}
@@ -1329,99 +1421,222 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
             </div>
           </div>
 
+          {/* Contact Links Section */}
+          <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center text-brand">
+                  <ExternalLink size={20} />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">문의처 링크 관리</h2>
+              </div>
+              <button 
+                onClick={() => {
+                  if (isEditingContactLinks) {
+                    handleSaveSettings();
+                  }
+                  setIsEditingContactLinks(!isEditingContactLinks);
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-xl font-bold text-sm transition-all",
+                  isEditingContactLinks 
+                    ? "bg-brand text-white shadow-lg shadow-brand/20" 
+                    : "text-brand hover:bg-brand/5"
+                )}
+              >
+                {isEditingContactLinks ? '저장하기' : '수정'}
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {(tempSettings.contactLinks || []).map((link, idx) => (
+                <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                  {isEditingContactLinks ? (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">링크 {idx + 1}</span>
+                        <button 
+                          onClick={() => {
+                            const newLinks = (tempSettings.contactLinks || []).filter((_, i) => i !== idx);
+                            setTempSettings({...tempSettings, contactLinks: newLinks});
+                          }}
+                          className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input 
+                          type="text" 
+                          value={link.label}
+                          onChange={e => {
+                            const newLinks = [...(tempSettings.contactLinks || [])];
+                            newLinks[idx].label = e.target.value;
+                            setTempSettings({...tempSettings, contactLinks: newLinks});
+                          }}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand bg-white"
+                          placeholder="버튼 이름 (예: 카카오톡 문의)"
+                        />
+                        <input 
+                          type="text" 
+                          value={link.url}
+                          onChange={e => {
+                            const newLinks = [...(tempSettings.contactLinks || [])];
+                            newLinks[idx].url = e.target.value;
+                            setTempSettings({...tempSettings, contactLinks: newLinks});
+                          }}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand bg-white"
+                          placeholder="URL 주소"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-400 border border-slate-100">
+                          <LinkIcon size={14} />
+                        </div>
+                        <span className="font-bold text-slate-700">{link.label}</span>
+                      </div>
+                      <span className="text-xs text-slate-400 truncate max-w-[150px] font-mono">{link.url}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {isEditingContactLinks && (
+                <button 
+                  onClick={() => setTempSettings({...tempSettings, contactLinks: [...(tempSettings.contactLinks || []), { label: '', url: '', icon: 'MessageCircle' }]})}
+                  className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm font-bold hover:border-brand hover:text-brand hover:bg-brand/5 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={16} />
+                  새 링크 추가
+                </button>
+              )}
+
+              {tempSettings.contactLinks?.length === 0 && !isEditingContactLinks && (
+                <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-slate-400 text-sm">등록된 링크가 없습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Training Process Editor */}
           <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-            <h2 className="text-2xl font-bold text-slate-900 mb-8">훈련 과정 관리</h2>
-            <div className="space-y-6">
-              {editingSteps.map((step, idx) => (
-                <div key={idx} className="p-4 bg-slate-50 rounded-2xl space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-brand">Step {idx + 1}</span>
-                    <div className="flex gap-2">
-                      <button 
-                        type="button"
-                        onClick={() => insertMarkdown('bold', 'step', idx)}
-                        className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-brand transition-all border border-slate-100"
-                        title="굵게"
-                      >
-                        <Bold size={14} />
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => insertMarkdown('link', 'step', idx)}
-                        className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-brand transition-all border border-slate-100"
-                        title="링크 삽입"
-                      >
-                        <LinkIcon size={14} />
-                      </button>
-                      <label className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-brand transition-all border border-slate-100 cursor-pointer" title="이미지 업로드">
-                        <ImageIcon size={14} />
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center text-brand">
+                  <CheckCircle2 size={20} />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">훈련 과정 관리</h2>
+              </div>
+              <button 
+                onClick={() => {
+                  if (isEditingSteps) {
+                    handleSaveSteps();
+                  } else {
+                    setIsEditingSteps(true);
+                  }
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-xl font-bold text-sm transition-all",
+                  isEditingSteps 
+                    ? "bg-brand text-white shadow-lg shadow-brand/20" 
+                    : "text-brand hover:bg-brand/5"
+                )}
+              >
+                {isEditingSteps ? '저장하기' : '수정'}
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {tempSteps.map((step, idx) => (
+                <div key={idx} className="p-6 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                  {isEditingSteps ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 bg-brand text-white rounded-md flex items-center justify-center text-xs font-bold">
+                            {idx + 1}
+                          </span>
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">단계 {idx + 1}</span>
+                        </div>
+                        <button 
+                          onClick={() => setTempSteps(tempSteps.filter((_, i) => i !== idx))}
+                          className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      <input 
+                        type="text" 
+                        value={step.title}
+                        onChange={e => {
+                          const newSteps = [...tempSteps];
+                          newSteps[idx].title = e.target.value;
+                          setTempSteps(newSteps);
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-base font-bold outline-none focus:border-brand bg-white"
+                        placeholder="단계 제목 (예: 1. 서류 접수)"
+                      />
+                      <RichTextEditor 
+                        value={step.description || ''}
+                        onChange={(val) => {
+                          const newSteps = [...tempSteps];
+                          newSteps[idx].description = val;
+                          setTempSteps(newSteps);
+                        }}
+                        onImageUpload={async () => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = async (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
                             if (file) {
                               const url = await handleFileUpload(file);
                               if (url) {
-                                const newSteps = [...editingSteps];
-                                const textarea = stepContentRefs.current[idx];
-                                const start = textarea?.selectionStart || 0;
-                                const end = textarea?.selectionEnd || 0;
-                                const currentContent = newSteps[idx].description || '';
-                                const snippet = `\n![이미지](${url})`;
-                                newSteps[idx].description = currentContent.substring(0, start) + snippet + currentContent.substring(end);
-                                setEditingSteps(newSteps);
+                                const newSteps = [...tempSteps];
+                                const imgMarkdown = `\n![이미지](${url})\n`;
+                                newSteps[idx].description = (newSteps[idx].description || '') + imgMarkdown;
+                                setTempSteps(newSteps);
                               }
                             }
-                          }}
-                        />
-                      </label>
-                      <button 
-                        onClick={() => setEditingSteps(editingSteps.filter((_, i) => i !== idx))}
-                        className="text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                          };
+                          input.click();
+                        }}
+                        className="min-h-[150px]"
+                      />
                     </div>
-                  </div>
-                  <input 
-                    type="text" 
-                    value={step.title}
-                    onChange={e => {
-                      const newSteps = [...editingSteps];
-                      newSteps[idx].title = e.target.value;
-                      setEditingSteps(newSteps);
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                    placeholder="단계 제목"
-                  />
-                  <textarea 
-                    ref={el => { stepContentRefs.current[idx] = el; }}
-                    value={step.description}
-                    onChange={e => {
-                      const newSteps = [...editingSteps];
-                      newSteps[idx].description = e.target.value;
-                      setEditingSteps(newSteps);
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                    placeholder="단계 설명 (Markdown 지원)"
-                  />
+                  ) : (
+                    <div className="flex items-start gap-4">
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-brand font-bold border border-slate-100 shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-slate-900 mb-1 truncate">{step.title}</h3>
+                        <p className="text-sm text-slate-500 line-clamp-2">{stripMarkdown(step.description)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
-              <button 
-                onClick={() => setEditingSteps([...editingSteps, { title: '', description: '', step_order: editingSteps.length + 1 }])}
-                className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold hover:border-brand hover:text-brand transition-all"
-              >
-                + 단계 추가
-              </button>
-              <button 
-                onClick={handleSaveSteps}
-                className="w-full py-4 bg-brand text-white rounded-2xl font-bold hover:bg-brand/90 transition-all"
-              >
-                훈련 과정 저장
-              </button>
+
+              {isEditingSteps && (
+                <button 
+                  onClick={() => setTempSteps([...tempSteps, { title: '', description: '', step_order: tempSteps.length + 1 }])}
+                  className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-sm font-bold hover:border-brand hover:text-brand hover:bg-brand/5 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={16} />
+                  새 단계 추가
+                </button>
+              )}
+
+              {tempSteps.length === 0 && !isEditingSteps && (
+                <div className="py-12 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                  <p className="text-slate-400 font-medium">등록된 훈련 과정이 없습니다.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1678,78 +1893,29 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">내용 (Markdown)</label>
-                      <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button 
-                          type="button"
-                          onClick={() => setIsPreviewMode(false)}
-                          className={cn(
-                            "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            !isPreviewMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                          )}
-                        >
-                          편집
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={() => setIsPreviewMode(true)}
-                          className={cn(
-                            "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            isPreviewMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                          )}
-                        >
-                          미리보기
-                        </button>
-                      </div>
-                    </div>
-                    {!isPreviewMode && (
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => insertMarkdown('bold', 'post')} className="p-2 bg-slate-50 rounded-lg text-slate-600 hover:bg-brand/10 hover:text-brand transition-all"><Bold size={18} /></button>
-                        <button type="button" onClick={() => insertMarkdown('link', 'post')} className="p-2 bg-slate-50 rounded-lg text-slate-600 hover:bg-brand/10 hover:text-brand transition-all"><LinkIcon size={18} /></button>
-                        <label className="p-2 bg-slate-50 rounded-lg text-slate-600 hover:bg-brand/10 hover:text-brand transition-all cursor-pointer">
-                          <ImageIcon size={18} />
-                          <input 
-                            type="file" 
-                            className="hidden" 
-                            accept="image/*"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const url = await handleFileUpload(file);
-                                if (url) {
-                                  const textarea = postContentRef.current;
-                                  const start = textarea?.selectionStart || 0;
-                                  const end = textarea?.selectionEnd || 0;
-                                  const currentContent = editingPost.content || '';
-                                  const snippet = `\n![이미지 설명](${url})`;
-                                  setEditingPost({
-                                    ...editingPost,
-                                    content: currentContent.substring(0, start) + snippet + currentContent.substring(end)
-                                  });
-                                }
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-                    )}
+                    <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">내용</label>
                   </div>
-                  {isPreviewMode ? (
-                    <div className="w-full px-6 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 min-h-[300px] overflow-y-auto markdown-body">
-                      <Markdown>{editingPost.content || ''}</Markdown>
-                    </div>
-                  ) : (
-                    <textarea 
-                      ref={postContentRef}
-                      required
-                      rows={12}
-                      value={editingPost.content}
-                      onChange={e => setEditingPost({...editingPost, content: e.target.value})}
-                      placeholder="# 제목\n\n내용을 입력하세요..."
-                      className="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:border-brand focus:ring-4 focus:ring-brand/10 outline-none transition-all text-lg font-mono"
-                    />
-                  )}
+                  <RichTextEditor 
+                    value={editingPost.content || ''}
+                    onChange={(val) => setEditingPost({ ...editingPost, content: val })}
+                    onImageUpload={async () => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*';
+                      input.onchange = async (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file) {
+                          const url = await handleFileUpload(file);
+                          if (url) {
+                            const imgMarkdown = `\n![이미지](${url})\n`;
+                            setEditingPost({ ...editingPost, content: (editingPost.content || '') + imgMarkdown });
+                          }
+                        }
+                      };
+                      input.click();
+                    }}
+                    className="min-h-[400px]"
+                  />
                 </div>
 
                 <div className="flex gap-4 pt-6">
@@ -1813,54 +1979,12 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">답변 (Markdown)</label>
-                      <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button 
-                          type="button"
-                          onClick={() => setIsPreviewMode(false)}
-                          className={cn(
-                            "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            !isPreviewMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                          )}
-                        >
-                          편집
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={() => setIsPreviewMode(true)}
-                          className={cn(
-                            "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            isPreviewMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                          )}
-                        >
-                          미리보기
-                        </button>
-                      </div>
-                    </div>
-                    {!isPreviewMode && (
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => insertMarkdown('bold', 'faq')} className="p-2 bg-slate-50 rounded-lg text-slate-600 hover:bg-brand/10 hover:text-brand transition-all"><Bold size={18} /></button>
-                        <button type="button" onClick={() => insertMarkdown('link', 'faq')} className="p-2 bg-slate-50 rounded-lg text-slate-600 hover:bg-brand/10 hover:text-brand transition-all"><LinkIcon size={18} /></button>
-                      </div>
-                    )}
-                  </div>
-                  {isPreviewMode ? (
-                    <div className="w-full px-6 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 min-h-[250px] overflow-y-auto markdown-body">
-                      <Markdown>{editingFaq.answer || ''}</Markdown>
-                    </div>
-                  ) : (
-                    <textarea 
-                      ref={faqContentRef}
-                      required
-                      rows={10}
-                      value={editingFaq.answer}
-                      onChange={e => setEditingFaq({...editingFaq, answer: e.target.value})}
-                      placeholder="답변 내용을 입력하세요..."
-                      className="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:border-brand focus:ring-4 focus:ring-brand/10 outline-none transition-all text-lg font-mono"
-                    />
-                  )}
+                  <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">답변</label>
+                  <RichTextEditor 
+                    value={editingFaq.answer || ''}
+                    onChange={(val) => setEditingFaq({ ...editingFaq, answer: val })}
+                    className="min-h-[300px]"
+                  />
                 </div>
 
                 <div className="flex gap-4 pt-6">
@@ -1883,89 +2007,6 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
           </div>
         )}
       </AnimatePresence>
-
-      {/* Link Dialog */}
-      <AnimatePresence>
-        {linkDialog?.isOpen && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setLinkDialog(null)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-slate-100"
-            >
-              <h3 className="text-lg font-bold text-slate-900 mb-4">
-                {linkDialog.type === 'link' ? '링크 추가' : '이미지 추가'}
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">표시 텍스트</label>
-                  <input 
-                    autoFocus
-                    type="text" 
-                    value={linkData.text}
-                    onChange={e => setLinkData({...linkData, text: e.target.value})}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-brand text-sm"
-                    placeholder="예: 여기를 클릭하세요"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
-                    {linkDialog.type === 'link' ? 'URL 주소' : '이미지 주소'}
-                  </label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={linkData.url}
-                      onChange={e => setLinkData({...linkData, url: e.target.value})}
-                      className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none focus:border-brand text-sm"
-                      placeholder="https://..."
-                    />
-                    {linkDialog.type === 'image' && (
-                      <label className="p-2 bg-slate-100 rounded-xl text-slate-600 hover:bg-slate-200 transition-all cursor-pointer">
-                        <Upload size={18} />
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const url = await handleFileUpload(file);
-                              if (url) setLinkData({...linkData, url});
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button 
-                    onClick={handleLinkConfirm}
-                    className="flex-1 py-3 bg-brand text-white rounded-xl font-bold text-sm shadow-lg shadow-brand/20"
-                  >
-                    확인
-                  </button>
-                  <button 
-                    onClick={() => setLinkDialog(null)}
-                    className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm"
-                  >
-                    취소
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -1977,6 +2018,7 @@ const Footer = ({ settings }: { settings: SiteSettings }) => (
         <div>
           <div className="flex items-center gap-2 mb-6">
             <img 
+              key={settings.logoUrl}
               src={settings.logoUrl || "https://ais-dev-ysg7qkjpfxol2zs3cfwsoo-76360252009.asia-northeast1.run.app/logo.png"} 
               alt="Logo" 
               className="w-8 h-8 rounded-lg object-cover"
@@ -2017,12 +2059,13 @@ export default function App() {
 
   const fetchData = async () => {
     try {
+      const t = Date.now();
       const [postsRes, settingsRes, stepsRes, categoriesRes, faqsRes] = await Promise.all([
-        fetch('/api/posts'),
-        fetch('/api/settings'),
-        fetch('/api/training-process'),
-        fetch('/api/categories'),
-        fetch('/api/faqs')
+        fetch(`/api/posts?t=${t}`),
+        fetch(`/api/settings?t=${t}`),
+        fetch(`/api/training-process?t=${t}`),
+        fetch(`/api/categories?t=${t}`),
+        fetch(`/api/faqs?t=${t}`)
       ]);
       const postsData = await postsRes.json();
       const settingsData = await settingsRes.json();
