@@ -56,6 +56,20 @@ const turndownService = new TurndownService({
   codeBlockStyle: 'fenced'
 });
 
+// Preserve image styles (width) during HTML to Markdown conversion
+turndownService.addRule('imageWidth', {
+  filter: 'img',
+  replacement: function (content, node: any) {
+    const alt = node.getAttribute('alt') || '';
+    const src = node.getAttribute('src') || '';
+    const width = node.style.width;
+    if (width) {
+      return `<img src="${src}" alt="${alt}" style="width: ${width}; height: auto;" />`;
+    }
+    return `![${alt}](${src})`;
+  }
+});
+
 // Configure marked for simple HTML output
 marked.setOptions({
   breaks: true,
@@ -70,12 +84,14 @@ const stripMarkdown = (text: string) => {
   if (!text) return '';
   return text
     .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images
+    .replace(/<img.*?>/g, '')        // Remove HTML images
     .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links but keep text
     .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
     .replace(/\*(.*?)\*/g, '$1')     // Remove italic
     .replace(/#{1,6}\s+(.*)/g, '$1') // Remove headers
     .replace(/`{1,3}.*?`{1,3}/gs, '') // Remove code blocks
     .replace(/>\s+(.*)/g, '$1')      // Remove blockquotes
+    .replace(/\\([.!])/g, '$1')      // Remove backslash escapes before dots/exclamation (e.g. 1\. -> 1.)
     .replace(/\n/g, ' ')             // Replace newlines with spaces
     .replace(/\s+/g, ' ')            // Collapse multiple spaces
     .trim();
@@ -429,12 +445,14 @@ const RichTextEditor = ({
                 className="bg-transparent border-none outline-none text-xs w-40 placeholder:text-white/30"
               />
               <button 
+                type="button"
                 onClick={saveLink}
                 className="p-1 hover:bg-white/20 rounded-md text-emerald-400"
               >
                 <Check size={14} />
               </button>
               <button 
+                type="button"
                 onClick={() => {
                   setIsEditingLink(false);
                   setLinkPopover(null);
@@ -497,11 +515,12 @@ const RichTextEditor = ({
           }}
           onMouseLeave={handleMouseLeave}
         >
-          <button onClick={() => resizeImage('25%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">25%</button>
-          <button onClick={() => resizeImage('50%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">50%</button>
-          <button onClick={() => resizeImage('100%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">100%</button>
+          <button type="button" onClick={() => resizeImage('25%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">25%</button>
+          <button type="button" onClick={() => resizeImage('50%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">50%</button>
+          <button type="button" onClick={() => resizeImage('100%')} className="px-2 py-1 hover:bg-white/20 rounded-lg text-[10px] font-bold">100%</button>
           <div className="w-px h-3 bg-white/10 mx-1" />
           <button 
+            type="button"
             onClick={deleteImage}
             className="p-1.5 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors"
           >
