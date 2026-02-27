@@ -162,6 +162,8 @@ const RichTextEditor = ({
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [linkPopover, setLinkPopover] = useState<{ x: number, y: number, href: string, element: HTMLAnchorElement } | null>(null);
+  const [isEditingLink, setIsEditingLink] = useState(false);
+  const [tempLinkUrl, setTempLinkUrl] = useState('');
   const popoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize content and handle external updates
@@ -193,24 +195,46 @@ const RichTextEditor = ({
 
   const handleAddLink = () => {
     const selection = window.getSelection();
-    const selectedText = selection?.toString() || '';
+    if (!selection || selection.rangeCount === 0) return;
     
-    const url = prompt('링크 URL을 입력하세요 (예: https://...):');
-    if (!url) return;
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    setLinkPopover({
+      x: rect.left,
+      y: rect.bottom + window.scrollY,
+      href: '',
+      element: null as any
+    });
+    setIsEditingLink(true);
+    setTempLinkUrl('');
+  };
 
-    if (!selectedText) {
-      const text = prompt('표시할 텍스트를 입력하세요:', '링크');
-      if (text) {
-        const linkHtml = `<a href="${url}" target="_blank">${text}</a>`;
-        document.execCommand('insertHTML', false, linkHtml);
-      }
-    } else {
-      execCommand('createLink', url);
+  const saveLink = () => {
+    if (!tempLinkUrl) {
+      setIsEditingLink(false);
+      setLinkPopover(null);
+      return;
     }
+
+    if (linkPopover?.element) {
+      // Editing existing link
+      linkPopover.element.setAttribute('href', tempLinkUrl);
+    } else {
+      // Creating new link
+      const selection = window.getSelection();
+      const selectedText = selection?.toString() || '링크';
+      const linkHtml = `<a href="${tempLinkUrl}" target="_blank">${selectedText}</a>`;
+      document.execCommand('insertHTML', false, linkHtml);
+    }
+    
     handleInput();
+    setIsEditingLink(false);
+    setLinkPopover(null);
   };
 
   const handleMouseOver = (e: React.MouseEvent) => {
+    if (isEditingLink) return;
     const target = e.target as HTMLElement;
     const anchor = target.closest('a');
     if (anchor) {
@@ -226,6 +250,7 @@ const RichTextEditor = ({
   };
 
   const handleMouseLeave = () => {
+    if (isEditingLink) return;
     popoverTimeoutRef.current = setTimeout(() => {
       setLinkPopover(null);
     }, 300);
@@ -279,59 +304,78 @@ const RichTextEditor = ({
 
       {linkPopover && (
         <div 
-          className="fixed z-[100] bg-slate-900 text-white p-2 rounded-xl text-xs flex items-center gap-3 shadow-xl border border-white/10"
+          className="fixed z-[100] bg-slate-900 text-white p-1.5 rounded-xl shadow-2xl border border-white/10 flex items-center gap-2"
           style={{ left: linkPopover.x, top: linkPopover.y + 8 }}
           onMouseEnter={() => {
             if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
           }}
-          onMouseLeave={() => setLinkPopover(null)}
+          onMouseLeave={handleMouseLeave}
         >
-          <span className="max-w-[150px] truncate opacity-70">{linkPopover.href}</span>
-          <div className="flex gap-1">
-            <button 
-              type="button"
-              onClick={() => {
-                const newUrl = prompt('새 링크 URL을 입력하세요:', linkPopover.href);
-                if (newUrl) {
-                  linkPopover.element.setAttribute('href', newUrl);
+          {isEditingLink ? (
+            <div className="flex items-center gap-1 px-1">
+              <input 
+                autoFocus
+                type="text"
+                value={tempLinkUrl}
+                onChange={(e) => setTempLinkUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveLink();
+                  if (e.key === 'Escape') {
+                    setIsEditingLink(false);
+                    setLinkPopover(null);
+                  }
+                }}
+                placeholder="https://..."
+                className="bg-transparent border-none outline-none text-xs w-32 placeholder:text-white/30"
+              />
+              <button 
+                onClick={saveLink}
+                className="p-1 hover:bg-white/20 rounded-md text-emerald-400"
+              >
+                <Check size={14} />
+              </button>
+              <button 
+                onClick={() => {
+                  setIsEditingLink(false);
+                  setLinkPopover(null);
+                }}
+                className="p-1 hover:bg-white/20 rounded-md text-white/50"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 px-1">
+              <span className="max-w-[120px] truncate opacity-50 text-[10px] mr-1">{linkPopover.href}</span>
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsEditingLink(true);
+                  setTempLinkUrl(linkPopover.href);
+                }}
+                className="px-2 py-1 hover:bg-white/20 rounded-lg transition-colors font-bold text-[11px]"
+              >
+                수정하기
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  const parent = linkPopover.element.parentNode;
+                  while (linkPopover.element.firstChild) {
+                    parent?.insertBefore(linkPopover.element.firstChild, linkPopover.element);
+                  }
+                  parent?.removeChild(linkPopover.element);
                   handleInput();
-                }
-                setLinkPopover(null);
-              }}
-              className="px-2 py-1 hover:bg-white/20 rounded-lg transition-colors font-bold"
-            >
-              수정
-            </button>
-            <button 
-              type="button"
-              onClick={() => {
-                const newText = prompt('표시할 텍스트를 수정하세요:', linkPopover.element.innerText);
-                if (newText) {
-                  linkPopover.element.innerText = newText;
-                  handleInput();
-                }
-                setLinkPopover(null);
-              }}
-              className="px-2 py-1 hover:bg-white/20 rounded-lg transition-colors font-bold"
-            >
-              텍스트
-            </button>
-            <button 
-              type="button"
-              onClick={() => {
-                const parent = linkPopover.element.parentNode;
-                while (linkPopover.element.firstChild) {
-                  parent?.insertBefore(linkPopover.element.firstChild, linkPopover.element);
-                }
-                parent?.removeChild(linkPopover.element);
-                handleInput();
-                setLinkPopover(null);
-              }}
-              className="px-2 py-1 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors font-bold"
-            >
-              제거
-            </button>
-          </div>
+                  setLinkPopover(null);
+                }}
+                className="px-2 py-1 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors font-bold text-[11px]"
+              >
+                제거
+              </button>
+            </div>
+          )}
+          {/* Speech bubble tail */}
+          <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-900 rotate-45 border-l border-t border-white/10" />
         </div>
       )}
     </div>
