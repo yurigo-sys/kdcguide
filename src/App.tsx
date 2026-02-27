@@ -286,10 +286,10 @@ const RichTextEditor = ({
     if (isEditingLink) return;
     popoverTimeoutRef.current = setTimeout(() => {
       setLinkPopover(null);
-    }, 500);
+    }, 200);
     imgPopoverTimeoutRef.current = setTimeout(() => {
       setImagePopover(null);
-    }, 500);
+    }, 200);
   };
 
   const resizeImage = (width: string) => {
@@ -1239,9 +1239,10 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
       if (res.ok) {
         alert(editingPost?.id ? '수정되었습니다.' : '저장되었습니다.');
         setEditingPost(null);
-        onRefresh();
+        await onRefresh();
       } else {
-        alert('저장에 실패했습니다.');
+        const errorData = await res.json();
+        alert('저장에 실패했습니다: ' + (errorData.error || '알 수 없는 오류'));
       }
     } catch (error) {
       console.error('Save post failed:', error);
@@ -1263,9 +1264,10 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
       if (res.ok) {
         alert(editingFaq?.id ? '수정되었습니다.' : '저장되었습니다.');
         setEditingFaq(null);
-        onRefresh();
+        await onRefresh();
       } else {
-        alert('저장에 실패했습니다.');
+        const errorData = await res.json();
+        alert('저장에 실패했습니다: ' + (errorData.error || '알 수 없는 오류'));
       }
     } catch (error) {
       console.error('Save FAQ failed:', error);

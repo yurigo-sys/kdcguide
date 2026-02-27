@@ -207,7 +207,8 @@ initDb().catch(console.error);
 
 export const app = express();
 app.set('trust proxy', 1);
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use(session({
   store: usePostgres ? new pgSession({ pool: pool!, tableName: 'session' }) : new SqliteSessionStore({ client: sqliteDb, expired: { clear: true, intervalMs: 900000 } }),
@@ -259,8 +260,12 @@ app.get("/api/posts/:id", async (req, res) => {
 
 app.post("/api/posts", async (req, res) => {
   const { title, content, category, icon } = req.body;
-  const result = await query("INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)", [title, content, category, icon]);
-  res.json({ id: result.rows[0]?.id || result.rows[0]?.lastinsertrowid, success: true });
+  const sql = usePostgres 
+    ? "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?) RETURNING id"
+    : "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)";
+  const result = await query(sql, [title, content, category, icon]);
+  const id = usePostgres ? result.rows[0]?.id : result.rows[0]?.id;
+  res.json({ id, success: true });
 });
 
 app.put("/api/posts/:id", async (req, res) => {
@@ -330,8 +335,12 @@ app.get("/api/faqs/:id", async (req, res) => {
 
 app.post("/api/faqs", async (req, res) => {
   const { question, answer } = req.body;
-  const result = await query("INSERT INTO faqs (question, answer) VALUES (?, ?)", [question, answer]);
-  res.json({ success: true, id: result.rows[0]?.id || result.rows[0]?.lastinsertrowid });
+  const sql = usePostgres
+    ? "INSERT INTO faqs (question, answer) VALUES (?, ?) RETURNING id"
+    : "INSERT INTO faqs (question, answer) VALUES (?, ?)";
+  const result = await query(sql, [question, answer]);
+  const id = usePostgres ? result.rows[0]?.id : result.rows[0]?.id;
+  res.json({ success: true, id });
 });
 
 app.post("/api/faqs/delete", async (req, res) => {
