@@ -9,10 +9,30 @@ import cookieParser from "cookie-parser";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import SQLiteStore from "better-sqlite3-session-store";
+import { createClient } from "@supabase/supabase-js";
+import "dotenv/config";
 
 const pgSession = connectPg(session);
 const SqliteSessionStore = SQLiteStore(session);
 const { Pool } = pg;
+
+// Supabase Storage Setup (Optional)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+
+console.log('[Supabase] Checking environment variables...');
+console.log('[Supabase] URL exists:', !!supabaseUrl, supabaseUrl ? `(${supabaseUrl.substring(0, 10)}...)` : '(null)');
+console.log('[Supabase] Key exists:', !!supabaseKey, supabaseKey ? `(${supabaseKey.substring(0, 5)}...)` : '(null)');
+
+const supabase = (supabaseUrl && supabaseKey && supabaseUrl.startsWith('http')) 
+  ? createClient(supabaseUrl, supabaseKey) 
+  : null;
+
+if (supabase) {
+  console.log('[Supabase] Client initialized successfully.');
+} else {
+  console.log('[Supabase] Client failed to initialize. Check URL format and Key.');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,14 +226,16 @@ const initDb = async () => {
 initDb().catch(console.error);
 
 export const app = express();
+app.set('etag', false);
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
   store: usePostgres ? new pgSession({ pool: pool!, tableName: 'session' }) : new SqliteSessionStore({ client: sqliteDb, expired: { clear: true, intervalMs: 900000 } }),
   secret: process.env.SESSION_SECRET || "comento-secret-key-12345",
-  resave: false,
+  resave: true,
   saveUninitialized: false,
+  rolling: true,
   cookie: { secure: true, sameSite: 'none', maxAge: 24 * 60 * 60 * 1000 }
 }));
 
@@ -233,16 +255,67 @@ const upload = multer({ storage });
 
 // API Routes
 app.get("/api/db-status", (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  const urlExists = !!process.env.SUPABASE_URL;
+  const keyExists = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY);
+  const urlValid = urlExists && process.env.SUPABASE_URL!.startsWith('http');
+  
+  console.log('[Status Check] Supabase configured:', !!supabase, 'URL:', urlExists, 'Key:', keyExists, 'Valid:', urlValid);
+  
   res.json({ 
     usePostgres, 
     isVercel,
+    supabaseConfigured: !!supabase,
+    diagnostics: {
+      urlExists,
+      keyExists,
+      urlValid,
+      urlPrefix: urlExists ? process.env.SUPABASE_URL!.substring(0, 10) : null
+    },
     dbPath: isVercel ? "/tmp/database.sqlite" : dbPath
   });
 });
 
-app.post("/api/upload", upload.single("image"), (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
-  res.json({ success: true, url: `/uploads/${req.file.filename}` });
+app.post("/api/upload", upload.single("image"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "No file uploaded" });
+  }
+
+  if (supabase) {
+    console.log('[Supabase] Supabase client is configured. Attempting upload...');
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const fileName = `${Date.now()}-${req.file.filename}`;
+      const { data, error } = await supabase.storage
+        .from('uploads')
+        .upload(fileName, fileBuffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+      
+      if (error) throw error;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('uploads')
+        .getPublicUrl(fileName);
+        
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      
+      console.log('[Supabase] Upload successful. URL:', publicUrl);
+      return res.json({ success: true, url: publicUrl });
+    } catch (err: any) {
+      console.error('[Supabase Storage] Upload error:', err);
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(500).json({ success: false, message: "Supabase upload failed.", error: err.message });
+    }
+  } else {
+    console.log('[Supabase] Supabase client is NOT configured. Falling back to temporary local upload.');
+    return res.json({ success: true, url: `/uploads/${req.file.filename}` });
+  }
 });
 
 app.get("/api/posts", async (req, res) => {
@@ -262,18 +335,25 @@ app.post("/api/posts", async (req, res) => {
     const { title, content, category, icon } = req.body;
 
     if (!title || !content) {
-      return res.status(400).json({ success: false, error: "title/content required" });
+      return res.status(400).json({ success: false, error: "Title and content are required." });
     }
 
-    const result = await query(
-      "INSERT INTO posts (title, content, category, icon) VALUES ($1, $2, $3, $4) RETURNING id",
-      [title, content, category ?? null, icon ?? null]
-    );
-
-    return res.json({ id: result.rows[0].id, success: true });
+    if (usePostgres) {
+      const result = await query(
+        "INSERT INTO posts (title, content, category, icon) VALUES ($1, $2, $3, $4) RETURNING id",
+        [title, content, category ?? '일반', icon ?? 'BookOpen']
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    } else {
+      const result = await query(
+        "INSERT INTO posts (title, content, category, icon) VALUES (?, ?, ?, ?)",
+        [title, content, category ?? '일반', icon ?? 'BookOpen']
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    }
   } catch (err) {
     console.error("POST /api/posts error:", err);
-    return res.status(500).json({ success: false, error: "server error" });
+    return res.status(500).json({ success: false, error: "Server error while creating post." });
   }
 });
 
@@ -343,9 +423,29 @@ app.get("/api/faqs/:id", async (req, res) => {
 });
 
 app.post("/api/faqs", async (req, res) => {
-  const { question, answer } = req.body;
-  const result = await query("INSERT INTO faqs (question, answer) VALUES (?, ?)", [question, answer]);
-  res.json({ success: true, id: result.rows[0].id });
+  try {
+    const { question, answer } = req.body;
+    if (!question || !answer) {
+      return res.status(400).json({ success: false, error: "Question and answer are required." });
+    }
+
+    if (usePostgres) {
+      const result = await query(
+        "INSERT INTO faqs (question, answer) VALUES ($1, $2) RETURNING id",
+        [question, answer]
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    } else {
+      const result = await query(
+        "INSERT INTO faqs (question, answer) VALUES (?, ?)",
+        [question, answer]
+      );
+      return res.json({ id: result.rows[0].id, success: true });
+    }
+  } catch (err) {
+    console.error("POST /api/faqs error:", err);
+    return res.status(500).json({ success: false, error: "Server error while creating FAQ." });
+  }
 });
 
 app.post("/api/faqs/delete", async (req, res) => {
