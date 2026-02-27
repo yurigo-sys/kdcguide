@@ -273,7 +273,8 @@ const RichTextEditor = ({
         onBlur={() => setIsFocused(false)}
         onMouseOver={handleMouseOver}
         onMouseLeave={handleMouseLeave}
-        className="p-6 min-h-[200px] outline-none prose prose-slate max-w-none prose-a:text-brand prose-a:font-bold prose-a:underline prose-strong:font-bold prose-img:rounded-2xl prose-img:shadow-sm prose-img:border prose-img:border-slate-100"
+        className="p-6 min-h-[250px] outline-none editor-content"
+        spellCheck={false}
       />
 
       {linkPopover && (
@@ -1574,7 +1575,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                         value={step.title}
                         onChange={e => {
                           const newSteps = [...tempSteps];
-                          newSteps[idx].title = e.target.value;
+                          newSteps[idx] = { ...newSteps[idx], title: e.target.value };
                           setTempSteps(newSteps);
                         }}
                         className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-base font-bold outline-none focus:border-brand bg-white"
@@ -1584,7 +1585,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                         value={step.description || ''}
                         onChange={(val) => {
                           const newSteps = [...tempSteps];
-                          newSteps[idx].description = val;
+                          newSteps[idx] = { ...newSteps[idx], description: val };
                           setTempSteps(newSteps);
                         }}
                         onImageUpload={async () => {
@@ -1598,7 +1599,10 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
                               if (url) {
                                 const newSteps = [...tempSteps];
                                 const imgMarkdown = `\n![이미지](${url})\n`;
-                                newSteps[idx].description = (newSteps[idx].description || '') + imgMarkdown;
+                                newSteps[idx] = { 
+                                  ...newSteps[idx], 
+                                  description: (newSteps[idx].description || '') + imgMarkdown 
+                                };
                                 setTempSteps(newSteps);
                               }
                             }

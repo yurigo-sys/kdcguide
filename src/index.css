@@ -22,6 +22,23 @@
 .markdown-body img { @apply rounded-2xl shadow-md my-8 max-w-full h-auto mx-auto; }
 .markdown-body a { @apply text-brand font-bold underline hover:text-brand/80 transition-colors; }
 .markdown-body strong { @apply font-bold text-slate-900; }
+
+/* 에디터 내부 스타일 강제 적용 */
+.editor-content {
+  @apply text-lg leading-relaxed text-slate-600;
+}
+.editor-content a {
+  @apply !text-brand !font-bold !underline;
+  cursor: pointer;
+}
+.editor-content strong {
+  @apply !font-bold !text-slate-900;
+}
+.editor-content h1 { @apply text-3xl font-bold mb-6 text-slate-900; }
+.editor-content h2 { @apply text-2xl font-semibold mt-8 mb-4 text-slate-800; }
+.editor-content ul { @apply list-disc pl-6 mb-6 space-y-2; }
+.editor-content ol { @apply list-decimal pl-6 mb-6 space-y-2; }
+
 .training-step-markdown p { @apply mb-0; }
 .training-step-markdown a { @apply underline decoration-2 underline-offset-4; }
 
