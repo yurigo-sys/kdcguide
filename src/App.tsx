@@ -1188,7 +1188,7 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
   const [showExportModal, setShowExportModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [confirmDeleteFaqId, setConfirmDeleteFaqId] = useState<number | null>(null);
-  const [dbStatus, setDbStatus] = useState<{ usePostgres: boolean, isVercel: boolean } | null>(null);
+  const [dbStatus, setDbStatus] = useState<{ usePostgres: boolean, isVercel: boolean, supabaseConfigured: boolean } | null>(null);
 
   useEffect(() => {
     fetch('/api/db-status').then(res => res.json()).then(setDbStatus).catch(console.error);
@@ -1486,15 +1486,24 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
           <h1 className="text-4xl font-bold text-slate-900 mb-2">관리자 대시보드</h1>
           <p className="text-slate-500 text-lg">가이드 콘텐츠와 사이트 설정을 관리하세요.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {dbStatus && (
-            <div className={cn(
-              "px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border",
-              dbStatus.usePostgres ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
-            )}>
-              <div className={cn("w-2 h-2 rounded-full", dbStatus.usePostgres ? "bg-emerald-500" : "bg-amber-500 animate-pulse")} />
-              {dbStatus.usePostgres ? "DB: Postgres (Persistent)" : "DB: SQLite (Ephemeral - Data will be lost on Vercel)"}
-            </div>
+            <>
+              <div className={cn(
+                "px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border",
+                dbStatus.usePostgres ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
+              )}>
+                <div className={cn("w-2 h-2 rounded-full", dbStatus.usePostgres ? "bg-emerald-500" : "bg-amber-500 animate-pulse")} />
+                {dbStatus.usePostgres ? "DB: Postgres (Persistent)" : "DB: SQLite (Ephemeral - Data will be lost on Vercel)"}
+              </div>
+              <div className={cn(
+                "px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border",
+                dbStatus.supabaseConfigured ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"
+              )}>
+                <div className={cn("w-2 h-2 rounded-full", dbStatus.supabaseConfigured ? "bg-emerald-500" : "bg-red-500 animate-pulse")} />
+                {dbStatus.supabaseConfigured ? "Storage: Supabase (Persistent)" : "Storage: Local (Ephemeral - Images will be lost on Vercel)"}
+              </div>
+            </>
           )}
           <button 
             onClick={() => setShowExportModal(true)}

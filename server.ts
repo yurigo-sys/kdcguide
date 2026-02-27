@@ -220,7 +220,7 @@ app.use(cookieParser());
 app.use(session({
   store: usePostgres ? new pgSession({ pool: pool!, tableName: 'session' }) : new SqliteSessionStore({ client: sqliteDb, expired: { clear: true, intervalMs: 900000 } }),
   secret: process.env.SESSION_SECRET || "comento-secret-key-12345",
-  resave: false,
+  resave: true, // Force session to be saved back to the session store
   saveUninitialized: false,
   rolling: true, // Keep session active on user activity
   cookie: { secure: true, sameSite: 'none', maxAge: 24 * 60 * 60 * 1000 }
@@ -245,6 +245,7 @@ app.get("/api/db-status", (req, res) => {
   res.json({ 
     usePostgres, 
     isVercel,
+    supabaseConfigured: !!supabase,
     dbPath: isVercel ? "/tmp/database.sqlite" : dbPath
   });
 });
@@ -450,6 +451,13 @@ app.get("/api/admin/check", (req, res) => {
   } else {
     res.status(401).json({ success: false });
   }
+});
+
+app.get("/api/config-status", (req, res) => {
+  res.json({
+    supabaseConfigured: !!supabase,
+    usePostgres: usePostgres
+  });
 });
 
 app.post("/api/admin/logout", (req, res) => {
