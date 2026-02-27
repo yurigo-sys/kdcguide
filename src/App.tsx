@@ -313,13 +313,13 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
       <ScrollGuide />
       {/* Hero Section */}
-      <section className="text-center flex flex-col justify-center min-h-[calc(100vh-80px)] py-32">
+      <section className="text-center flex flex-col justify-center min-h-[calc(100vh-80px)] py-20 md:py-32">
         <motion.h1 
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
           variants={titleVariants}
-          className="text-[32px] md:text-[80px] font-bold text-slate-900 mb-8 tracking-tight leading-[1.1]"
+          className="text-[28px] md:text-[80px] font-bold text-slate-900 mb-6 md:mb-8 tracking-tight leading-[1.2] md:leading-[1.1]"
         >
           훈련의 시작부터 수료까지,<br />
           <span className="text-brand">코멘토</span>가 함께합니다.
@@ -329,7 +329,7 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
           whileInView="visible"
           viewport={{ once: true }}
           variants={titleVariants}
-          className="text-xl md:text-3xl text-slate-500 max-w-4xl mx-auto leading-relaxed"
+          className="text-lg md:text-3xl text-slate-500 max-w-4xl mx-auto leading-relaxed px-4"
         >
           K-디지털 기초역량훈련 과정을 원활하게 진행하실 수 있도록<br className="hidden sm:block" />
           상세한 가이드를 제공해 드립니다.
@@ -337,14 +337,14 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
       </section>
 
       {/* Training Process Section */}
-      <section id="checklist" className="flex flex-col justify-center py-32 scroll-mt-24">
-        <div className="text-center mb-16">
+      <section id="checklist" className="flex flex-col justify-center py-20 md:py-32 scroll-mt-24">
+        <div className="text-center mb-12 md:mb-16">
           <motion.h2 
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={titleVariants}
-            className="text-4xl md:text-4xl font-bold text-slate-900 mb-4"
+            className="text-3xl md:text-4xl font-bold text-slate-900 mb-4"
           >
             훈련 체크리스트
           </motion.h2>
@@ -353,13 +353,13 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
             whileInView="visible"
             viewport={{ once: true }}
             variants={titleVariants}
-            className="text-xl md:text-2xl text-slate-500 mb-8"
+            className="text-lg md:text-2xl text-slate-500 mb-8"
           >
             두근두근 훈련 시작 전 점검해볼까요?
           </motion.p>
-          <div className="w-20 h-1.5 bg-brand mx-auto rounded-full" />
+          <div className="w-16 md:w-20 h-1.5 bg-brand mx-auto rounded-full" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           {trainingSteps.map((step, index) => (
             <motion.div 
               key={index}
@@ -367,13 +367,13 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
-              className="relative bg-slate-50 rounded-[32px] p-8 border border-slate-100"
+              className="relative bg-slate-50 rounded-[24px] md:rounded-[32px] p-6 md:p-8 border border-slate-100"
             >
-              <div className="absolute -top-6 left-8 w-12 h-12 bg-brand text-white rounded-2xl flex items-center justify-center font-bold text-xl shadow-lg shadow-brand/20">
+              <div className="absolute -top-5 left-6 md:-top-6 md:left-8 w-10 h-10 md:w-12 md:h-12 bg-brand text-white rounded-xl md:rounded-2xl flex items-center justify-center font-bold text-lg md:text-xl shadow-lg shadow-brand/20">
                 {index + 1}
               </div>
-              <h3 className="text-2xl font-bold text-slate-900 mt-4 mb-4">{step.title}</h3>
-              <div className="text-slate-500 text-lg leading-relaxed markdown-body training-step-markdown">
+              <h3 className="text-xl md:text-2xl font-bold text-slate-900 mt-4 mb-3 md:mb-4">{step.title}</h3>
+              <div className="text-slate-500 text-base md:text-lg leading-relaxed markdown-body training-step-markdown">
                 <Markdown>{step.description}</Markdown>
               </div>
             </motion.div>
@@ -382,14 +382,14 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
       </section>
 
       {/* Guides Section */}
-      <section id="guides" className="flex flex-col justify-center py-32 scroll-mt-24">
-        <div className="text-center mb-10">
+      <section id="guides" className="flex flex-col justify-center py-20 md:py-32 scroll-mt-24">
+        <div className="text-center mb-8 md:mb-10">
           <motion.h2 
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={titleVariants}
-            className="text-4xl md:text-4xl font-bold text-slate-900 mb-4"
+            className="text-3xl md:text-4xl font-bold text-slate-900 mb-4"
           >
             상세 가이드 목록
           </motion.h2>
@@ -398,17 +398,17 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
             whileInView="visible"
             viewport={{ once: true }}
             variants={titleVariants}
-            className="text-slate-500 text-xl md:text-2xl mb-6"
+            className="text-lg md:text-2xl text-slate-500 mb-6"
           >
             필요한 정보를 클릭하여 확인하세요.
           </motion.p>
           
           {/* Category Filter */}
-          <div className="flex flex-wrap justify-center gap-3 mb-8">
+          <div className="flex flex-wrap justify-center gap-2 md:gap-3 mb-8">
             <button 
               onClick={() => setSelectedCategory('전체')}
               className={cn(
-                "px-6 py-2.5 rounded-full font-bold transition-all",
+                "px-4 md:px-6 py-2 md:py-2.5 rounded-full font-bold text-sm md:text-base transition-all",
                 selectedCategory === '전체' ? "bg-brand text-white shadow-lg shadow-brand/20" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
               )}
             >
@@ -419,7 +419,7 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.name)}
                 className={cn(
-                  "px-6 py-2.5 rounded-full font-bold transition-all",
+                  "px-4 md:px-6 py-2 md:py-2.5 rounded-full font-bold text-sm md:text-base transition-all",
                   selectedCategory === cat.name ? "bg-brand text-white shadow-lg shadow-brand/20" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                 )}
               >
@@ -429,20 +429,20 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
           </div>
 
           {/* Search Bar */}
-          <div className="max-w-md mx-auto mb-12 relative">
-            <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-slate-400">
-              <Search size={20} />
+          <div className="max-w-md mx-auto mb-10 md:mb-12 relative px-4">
+            <div className="absolute inset-y-0 left-8 md:left-5 flex items-center pointer-events-none text-slate-400">
+              <Search size={18} />
             </div>
             <input 
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="가이드 제목이나 내용을 검색해보세요"
-              className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-lg"
+              className="w-full pl-12 md:pl-14 pr-6 py-3 md:py-4 bg-slate-50 border border-slate-100 rounded-xl md:rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-base md:text-lg"
             />
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {filteredPosts.map((post) => (
             <GuideCard key={post.id} post={post} />
           ))}
@@ -450,25 +450,25 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
       </section>
 
       {/* FAQ & Contact Row */}
-      <section id="support" className="flex flex-col justify-center py-32 scroll-mt-24">
-        <div className="text-center mb-8">
+      <section id="support" className="flex flex-col justify-center py-20 md:py-32 scroll-mt-24">
+        <div className="text-center mb-6 md:mb-8">
           <motion.h2 
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={titleVariants}
-            className="text-4xl md:text-4xl font-bold text-slate-900 mb-4"
+            className="text-3xl md:text-4xl font-bold text-slate-900 mb-4"
           >
             문의하기
           </motion.h2>
-          <div className="w-20 h-1.5 bg-brand mx-auto rounded-full mb-6" />
+          <div className="w-16 md:w-20 h-1.5 bg-brand mx-auto rounded-full mb-6" />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
           {/* FAQ Section */}
-          <section className="bg-white rounded-[48px] p-8 md:p-12 border border-slate-100 shadow-sm flex flex-col max-h-[800px]">
-            <div className="mb-8">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">자주 묻는 질문</h2>
-              <p className="text-slate-500 text-lg mb-6">궁금한 점을 빠르게 해결해 보세요.</p>
+          <section className="bg-white rounded-[32px] md:rounded-[48px] p-6 md:p-12 border border-slate-100 shadow-sm flex flex-col max-h-[600px] md:max-h-[800px]">
+            <div className="mb-6 md:mb-8">
+              <h2 className="text-2xl md:text-4xl font-bold text-slate-900 mb-3 md:mb-4">자주 묻는 질문</h2>
+              <p className="text-slate-500 text-base md:text-lg mb-6">궁금한 점을 빠르게 해결해 보세요.</p>
               
               {/* FAQ Search */}
               <div className="relative">
@@ -480,28 +480,28 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
                   value={faqSearchQuery}
                   onChange={(e) => setFaqSearchQuery(e.target.value)}
                   placeholder="질문 내용을 검색해보세요"
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-brand transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-brand transition-all text-sm md:text-base"
                 />
               </div>
             </div>
-            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-3 md:space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               {filteredFaqs.length > 0 ? (
                 filteredFaqs.map((faq) => (
                   <Link 
                     key={faq.id} 
                     to={`/faq/${faq.id}`}
-                    className="block bg-slate-50 rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md hover:border-brand/20 transition-all group"
+                    className="block bg-slate-50 rounded-xl md:rounded-2xl p-4 md:p-5 border border-slate-100 shadow-sm hover:shadow-md hover:border-brand/20 transition-all group"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-brand font-bold group-hover:bg-brand group-hover:text-white transition-colors border border-slate-100">
+                      <div className="flex items-center gap-3 md:gap-4">
+                        <div className="w-8 h-8 md:w-10 md:h-10 shrink-0 bg-white rounded-lg md:rounded-xl flex items-center justify-center text-brand font-bold group-hover:bg-brand group-hover:text-white transition-colors border border-slate-100 text-sm md:text-base">
                           Q
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900 group-hover:text-brand transition-colors">
+                        <h3 className="text-base md:text-lg font-bold text-slate-900 group-hover:text-brand transition-colors line-clamp-1">
                           {faq.question}
                         </h3>
                       </div>
-                      <ChevronRight size={20} className="text-slate-300 group-hover:text-brand group-hover:translate-x-1 transition-all" />
+                      <ChevronRight size={18} className="text-slate-300 group-hover:text-brand group-hover:translate-x-1 transition-all shrink-0" />
                     </div>
                   </Link>
                 ))
@@ -515,19 +515,19 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
 
           {/* Contact Section */}
           {settings.contactInfo && (
-            <section className="bg-brand rounded-[48px] p-8 md:p-12 text-center overflow-hidden relative shadow-2xl shadow-brand/30 flex flex-col justify-center">
+            <section className="bg-brand rounded-[32px] md:rounded-[48px] p-8 md:p-12 text-center overflow-hidden relative shadow-2xl shadow-brand/30 flex flex-col justify-center">
               <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white rounded-full blur-[120px]" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] md:w-[800px] h-[600px] md:h-[800px] bg-white rounded-full blur-[100px] md:blur-[120px]" />
               </div>
               <div className="relative z-10">
-                <div className="w-16 h-16 bg-white/20 text-white rounded-3xl flex items-center justify-center mx-auto mb-8">
-                  <HelpCircle size={32} />
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-white/20 text-white rounded-2xl md:rounded-3xl flex items-center justify-center mx-auto mb-6 md:mb-8">
+                  <HelpCircle className="w-7 h-7 md:w-8 md:h-8" />
                 </div>
-                <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">도움이 필요하신가요?</h2>
-                <p className="text-white/90 text-xl max-w-2xl mx-auto leading-relaxed mb-10">
+                <h2 className="text-2xl md:text-4xl font-bold text-white mb-4 md:mb-6">도움이 필요하신가요?</h2>
+                <p className="text-white/90 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed mb-8 md:mb-10">
                   {settings.contactInfo}
                 </p>
-                <div className="flex flex-wrap justify-center gap-4">
+                <div className="flex flex-wrap justify-center gap-3 md:gap-4">
                   {settings.contactLinks?.map((link, idx) => {
                     const Icon = ICON_MAP[link.icon] || MessageCircle;
                     return (
@@ -536,9 +536,9 @@ const Home = ({ posts, trainingSteps, settings, categories, faqs, scrollContaine
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-8 py-4 bg-white text-brand rounded-2xl font-bold text-lg hover:scale-105 transition-all shadow-xl flex items-center gap-2"
+                        className="px-6 md:px-8 py-3 md:py-4 bg-white text-brand rounded-xl md:rounded-2xl font-bold text-base md:text-lg hover:scale-105 transition-all shadow-xl flex items-center gap-2"
                       >
-                        <Icon size={20} className="text-brand" />
+                        <Icon className="w-[18px] h-[18px] md:w-5 md:h-5 text-brand" />
                         {link.label}
                       </a>
                     );
@@ -576,17 +576,17 @@ const GuideDetail = () => {
         뒤로 가기
       </button>
 
-      <article className="bg-white rounded-[40px] p-8 md:p-16 border border-slate-100 shadow-sm">
-        <header className="mb-12 border-b border-slate-100 pb-12">
-          <div className="flex items-center gap-3 mb-6">
-            <span className="px-4 py-1.5 bg-brand/10 text-brand rounded-full text-sm font-bold uppercase tracking-wider">
+      <article className="bg-white rounded-[40px] p-6 md:p-16 border border-slate-100 shadow-sm">
+        <header className="mb-8 md:mb-12 border-b border-slate-100 pb-8 md:pb-12">
+          <div className="flex items-center gap-3 mb-4 md:mb-6">
+            <span className="px-3 md:px-4 py-1 md:py-1.5 bg-brand/10 text-brand rounded-full text-xs md:text-sm font-bold uppercase tracking-wider">
               {post.category}
             </span>
-            <span className="text-slate-400 text-sm">
+            <span className="text-slate-400 text-xs md:text-sm">
               최종 업데이트: {new Date(post.updated_at).toLocaleDateString()}
             </span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight">
+          <h1 className="text-2xl md:text-5xl font-bold text-slate-900 leading-tight">
             {post.title}
           </h1>
         </header>
@@ -638,17 +638,17 @@ const FAQDetail = () => {
         뒤로 가기
       </button>
 
-      <article className="bg-white rounded-[40px] p-8 md:p-16 border border-slate-100 shadow-sm">
-        <header className="mb-12 border-b border-slate-100 pb-12">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-brand text-white rounded-2xl flex items-center justify-center text-2xl font-bold">
+      <article className="bg-white rounded-[40px] p-6 md:p-16 border border-slate-100 shadow-sm">
+        <header className="mb-8 md:mb-12 border-b border-slate-100 pb-8 md:pb-12">
+          <div className="flex items-center gap-4 mb-4 md:mb-6">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-brand text-white rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl font-bold">
               Q
             </div>
-            <span className="text-slate-400 text-sm">
+            <span className="text-slate-400 text-xs md:text-sm">
               최종 업데이트: {new Date(faq.updated_at).toLocaleDateString()}
             </span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight">
+          <h1 className="text-2xl md:text-5xl font-bold text-slate-900 leading-tight">
             {faq.question}
           </h1>
         </header>
@@ -805,13 +805,22 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
     const method = editingPost?.id ? 'PUT' : 'POST';
     const url = editingPost?.id ? `/api/posts/${editingPost.id}` : '/api/posts';
     
-    await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingPost)
-    });
-    setEditingPost(null);
-    onRefresh();
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingPost)
+      });
+      if (res.ok) {
+        setEditingPost(null);
+        onRefresh();
+      } else {
+        alert('저장에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Save post failed:', error);
+      alert('저장 중 오류가 발생했습니다.');
+    }
   };
 
   const handleSaveFaq = async (e: React.FormEvent) => {
@@ -819,13 +828,22 @@ const AdminDashboard = ({ posts, settings, trainingSteps, categories, faqs, onRe
     const method = editingFaq?.id ? 'PUT' : 'POST';
     const url = editingFaq?.id ? `/api/faqs/${editingFaq.id}` : '/api/faqs';
     
-    await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingFaq)
-    });
-    setEditingFaq(null);
-    onRefresh();
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingFaq)
+      });
+      if (res.ok) {
+        setEditingFaq(null);
+        onRefresh();
+      } else {
+        alert('저장에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Save FAQ failed:', error);
+      alert('저장 중 오류가 발생했습니다.');
+    }
   };
 
   const handleDeleteFaq = async (id: number) => {
